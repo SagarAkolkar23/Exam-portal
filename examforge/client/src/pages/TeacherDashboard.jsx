@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { io } from 'socket.io-client';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import ExamCard from '../components/ExamCard';
@@ -176,20 +175,8 @@ function TeacherDashboard() {
     return () => clearInterval(t);
   }, [fetchPolls]);
 
-  // ── Live violations via socket ─────────────────────────────────────────────
-
-  useEffect(() => {
-    if (!user?._id) return;
-    const socket = io('/', { transports: ['websocket', 'polling'] });
-    socket.on('connect', () => socket.emit('join-teacher', { teacherId: user._id }));
-    socket.on('violation', ({ examId, type }) => {
-      if (['exam_start', 'exam_submit'].includes(type)) return;
-      setLiveViolations((p) => ({ ...p, [examId]: (p[examId] || 0) + 1 }));
-    });
-    return () => socket.disconnect();
-  }, [user?._id]);
-
   // ── Actions ────────────────────────────────────────────────────────────────
+
 
   const handleAddTestStudent = async (e) => {
     e.preventDefault();

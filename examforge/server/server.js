@@ -4,11 +4,8 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
-const { Server } = require('socket.io');
-
 const connectDB = require('./config/db');
 const errorHandler = require('./middleware/errorHandler');
-const setupProctoringSocket = require('./socket/proctorSocket');
 
 // Routes
 const authRoutes = require('./routes/auth');
@@ -21,21 +18,6 @@ const studentRoutes = require('./routes/students');
 
 const app = express();
 const server = http.createServer(app);
-
-// ─── Socket.io ───────────────────────────────────────────────────────────────
-
-const io = new Server(server, {
-  cors: {
-    origin: process.env.CLIENT_URL || 'http://localhost:5173',
-    methods: ['GET', 'POST'],
-    credentials: true,
-  },
-});
-
-setupProctoringSocket(io);
-
-// Make io available in routes via req.app.get('io')
-app.set('io', io);
 
 // ─── Security Middleware ──────────────────────────────────────────────────────
 

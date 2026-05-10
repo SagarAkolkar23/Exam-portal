@@ -1,5 +1,4 @@
 import { useEffect, useRef, useCallback } from 'react';
-import { io } from 'socket.io-client';
 import api from '../api/axios';
 
 /**
@@ -16,7 +15,6 @@ import api from '../api/axios';
  * @param {boolean} options.enabled - Whether proctoring is active
  */
 export function useProctor(examId, studentId, submissionId, { onFullscreenExit, onTabSwitch, enabled = false } = {}) {
-  const socketRef = useRef(null);
   const lastEventTimeRef = useRef({}); // debounce tracker
   const devtoolsFiredRef = useRef(false);
   const devtoolsIntervalRef = useRef(null);
@@ -43,38 +41,9 @@ export function useProctor(examId, studentId, submissionId, { onFullscreenExit, 
       } catch (err) {
         console.warn('[Proctor] HTTP event save failed:', err.message);
       }
-
-      // Socket emit
-      if (socketRef.current?.connected) {
-        socketRef.current.emit('proctor-event', payload);
-      }
     },
     [enabled, examId, studentId]
   );
-
-  // ── Socket Setup ─────────────────────────────────────────────────────────────
-  useEffect(() => {
-    if (!enabled || !examId || !studentId) return;
-
-    const socket = io('/', {
-      transports: ['websocket', 'polling'],
-      auth: { token: localStorage.getItem('examforge_token') },
-    });
-
-    socket.on('connect', () => {
-      console.log('[Proctor Socket] Connected:', socket.id);
-      socket.emit('join-exam', { examId, studentId });
-    });
-
-    socket.on('disconnect', () => console.log('[Proctor Socket] Disconnected'));
-
-    socketRef.current = socket;
-
-    return () => {
-      socket.disconnect();
-      socketRef.current = null;
-    };
-  }, [enabled, examId, studentId]);
 
   // ── Fullscreen Lock ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -190,7 +159,7 @@ export function useProctor(examId, studentId, submissionId, { onFullscreenExit, 
     };
   }, []);
 
-  return { sendEvent, socket: socketRef.current };
+  return { sendEvent };
 }
 
 export default useProctor;

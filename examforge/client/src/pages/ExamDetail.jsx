@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { io } from 'socket.io-client';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { formatDate, getErrorMessage, exportCSV } from '../utils/helpers';
@@ -52,8 +51,6 @@ function ExamDetail() {
   const [error, setError] = useState('');
   const [expandedRow, setExpandedRow] = useState(null);
   const [ending, setEnding] = useState(false);
-  const [connectedStudents, setConnectedStudents] = useState(0);
-  const [liveViolations, setLiveViolations] = useState({});
 
   const fetchData = useCallback(async () => {
     try {
@@ -68,18 +65,6 @@ function ExamDetail() {
   }, [id]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
-
-  useEffect(() => {
-    if (!user?._id || !id) return;
-    const socket = io('/', { transports: ['websocket', 'polling'] });
-    socket.on('connect', () => socket.emit('join-teacher', { teacherId: user._id, examId: id }));
-    socket.on('student-connected', () => setConnectedStudents((c) => c + 1));
-    socket.on('violation', ({ studentId, type }) => {
-      if (['exam_start','exam_submit'].includes(type)) return;
-      setLiveViolations((p) => ({ ...p, [studentId]: (p[studentId] || 0) + 1 }));
-    });
-    return () => socket.disconnect();
-  }, [user?._id, id]);
 
   const handleEnd = async () => {
     if (!window.confirm('End this exam?')) return;
@@ -146,7 +131,7 @@ function ExamDetail() {
 
       {exam.status === 'live' && (
         <div className="alert alert-warning mb-6">
-          <strong className="font-bold">Live Exam in Progress.</strong> {connectedStudents} students connected.
+          <strong className="font-bold">Live Exam in Progress.</strong>
         </div>
       )}
 
@@ -208,7 +193,7 @@ function ExamDetail() {
                   const s = r.studentId;
                   const tMin = r.startedAt && r.submittedAt ? Math.round((new Date(r.submittedAt)-new Date(r.startedAt))/60000) : '—';
                   const initials = s?.name ? s.name.split(' ').map(n=>n[0]).join('') : '?';
-                  const vCount = (r.totalViolations||0) + (liveViolations[s?._id]||0);
+                  const vCount = r.totalViolations || 0;
                   
                   return (
                     <React.Fragment key={r._id}>

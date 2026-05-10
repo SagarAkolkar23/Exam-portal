@@ -4,6 +4,7 @@ import api from '../api/axios';
 import QuestionBuilder from '../components/QuestionBuilder';
 import ExamReview from '../components/ExamReview';
 import { getErrorMessage } from '../utils/helpers';
+import { useExamStore } from '../store/examStore';
 
 const STEPS = ['Basic info', 'Questions', 'Assign students', 'Review'];
 const emptyQ = () => ({ text: '', type: 'mcq', options: ['', '', '', ''], correctIndex: 0, marks: 1 });
@@ -15,24 +16,15 @@ function CreateExam({ isEditing = false }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const [basic, setBasic] = useState({
-    title: '',
-    description: '',
-    duration: 60,
-    totalMarks: '',
-    scheduledStart: '',
-    scheduledEnd: '',
-    latestJoinTime: '',
-    shuffleOptions: true,
-    showResultAfterSubmit: false,
-  });
+  const {
+    basic, setBasic,
+    rules, setRules,
+    questions, setQuestions,
+    assignedStudents: selected, setAssignedStudents: setSelected,
+    clearExamState, setFullState
+  } = useExamStore();
 
-  // Rules: array of rule strings
-  const [rules, setRules] = useState(['']);
-
-  const [questions, setQuestions] = useState([emptyQ()]);
   const [students, setStudents] = useState([]);
-  const [selected, setSelected] = useState([]);
   const [search, setSearch] = useState('');
   const [loadingStudents, setLoadingStudents] = useState(false);
 
@@ -55,20 +47,23 @@ function CreateExam({ isEditing = false }) {
         .then(({ data }) => {
           const d = data.scheduledStart ? new Date(data.scheduledStart) : null;
           const lj = data.latestJoinTime ? new Date(data.latestJoinTime) : null;
-          setBasic({
-            title: data.title || '',
-            description: data.description || '',
-            duration: data.duration || 60,
-            totalMarks: data.totalMarks || '',
-            scheduledStart: d ? new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16) : '',
-            scheduledEnd: '',
-            latestJoinTime: lj ? new Date(lj.getTime() - lj.getTimezoneOffset() * 60000).toISOString().slice(0, 16) : '',
-            shuffleOptions: data.shuffleOptions ?? true,
-            showResultAfterSubmit: data.showResultAfterSubmit ?? false,
-          });
-          setRules(data.rules && data.rules.length ? data.rules : ['']);
-          setQuestions(data.questions && data.questions.length ? data.questions : [emptyQ()]);
-          setSelected((data.assignedStudents || []).map((s) => s._id || s));
+          const fullState = {
+            basic: {
+              title: data.title || '',
+              description: data.description || '',
+              duration: data.duration || 60,
+              totalMarks: data.totalMarks || '',
+              scheduledStart: d ? new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16) : '',
+              scheduledEnd: '',
+              latestJoinTime: lj ? new Date(lj.getTime() - lj.getTimezoneOffset() * 60000).toISOString().slice(0, 16) : '',
+              shuffleOptions: data.shuffleOptions ?? true,
+              showResultAfterSubmit: data.showResultAfterSubmit ?? false,
+            },
+            rules: data.rules && data.rules.length ? data.rules : [''],
+            questions: data.questions && data.questions.length ? data.questions : [emptyQ()],
+            assignedStudents: (data.assignedStudents || []).map((s) => s._id || s)
+          };
+          setFullState(fullState);
           setStep(4); // Jump to review step
         })
         .catch((err) => setError(getErrorMessage(err)))
@@ -174,6 +169,7 @@ function CreateExam({ isEditing = false }) {
       }
       
       if (publish) await api.post(`/exams/${examId}/publish`);
+      clearExamState();
       navigate('/teacher/dashboard');
     } catch (err) {
       setError(getErrorMessage(err));
@@ -192,7 +188,7 @@ function CreateExam({ isEditing = false }) {
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-2xl font-extrabold text-ink">{isEditing ? 'Edit Draft Exam' : 'Create New Exam'}</h1>
-        <button className="btn btn-secondary" onClick={() => navigate('/teacher/dashboard')}>
+        <button className="btn btn-secondary" onClick={() => { clearExamState(); navigate('/teacher/dashboard'); }}>
           Cancel
         </button>
       </div>
