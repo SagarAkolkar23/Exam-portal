@@ -1,0 +1,165 @@
+@import "tailwindcss";
+
+/* ── Custom Design Tokens (Light Enterprise Theme) ───────────────────────── */
+@theme {
+  --color-surface:       #f8fafc; /* slate-50 */
+  --color-surface-alt:   #f1f5f9; /* slate-100 */
+  --color-card:          #ffffff;
+  --color-hover:         #f1f5f9;
+  --color-line:          #e2e8f0; /* slate-200 */
+  --color-line-light:    #f1f5f9;
+
+  --color-primary:       #4f46e5; /* indigo-600 */
+  --color-primary-dark:  #4338ca; /* indigo-700 */
+  --color-primary-light: #6366f1; /* indigo-500 */
+  
+  --color-primary-bg:    #eef2ff; /* indigo-50 */
+
+  --color-accent:        #0ea5e9; /* sky-500 */
+  --color-success:       #10b981; /* emerald-500 */
+  --color-warn:          #f59e0b; /* amber-500 */
+  --color-danger:        #ef4444; /* red-500 */
+
+  --color-ink:           #0f172a; /* slate-900 */
+  --color-ink-dim:       #475569; /* slate-600 */
+  --color-ink-muted:     #64748b; /* slate-500 */
+
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+/* ── Global Resets ────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: var(--font-sans);
+  background-color: var(--color-surface);
+  color: var(--color-ink);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+a { color: var(--color-primary); text-decoration: none; transition: color 150ms; }
+a:hover { color: var(--color-primary-dark); }
+
+/* ── Scrollbar ────────────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+/* ── Keyframes ────────────────────────────────────────────────────────────── */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Reusable Component Classes ───────────────────────────────────────────── */
+@layer components {
+
+  /* Buttons */
+  .btn {
+    @apply inline-flex items-center gap-2 px-4 py-2 rounded-lg font-medium
+           text-sm cursor-pointer border transition-all duration-200 select-none
+           whitespace-nowrap no-underline;
+  }
+  .btn:disabled { @apply opacity-50 cursor-not-allowed pointer-events-none; }
+
+  .btn-primary {
+    @apply bg-primary text-white border-primary shadow-sm;
+  }
+  .btn-primary:not(:disabled):hover {
+    @apply bg-primary-dark border-primary-dark;
+  }
+  
+  .btn-secondary {
+    @apply bg-white text-ink border-line shadow-sm;
+  }
+  .btn-secondary:not(:disabled):hover { 
+    @apply bg-slate-50 border-slate-300; 
+  }
+
+  .btn-danger {
+    @apply bg-danger text-white border-danger shadow-sm;
+  }
+  .btn-danger:not(:disabled):hover {
+    @apply bg-red-600 border-red-600;
+  }
+  
+  .btn-ghost {
+    @apply bg-transparent text-ink-dim border-transparent;
+  }
+  .btn-ghost:not(:disabled):hover { 
+    @apply bg-slate-100 text-ink; 
+  }
+
+  .btn-sm  { @apply px-3 py-1.5 text-xs rounded-md; }
+  .btn-lg  { @apply px-6 py-2.5 text-base rounded-xl; }
+
+  /* Forms */
+  .form-label { @apply text-xs font-semibold text-ink-dim uppercase tracking-wider mb-1.5 block; }
+  .form-error { @apply text-xs text-danger flex items-center gap-1 mt-1.5; }
+  .form-group { @apply flex flex-col; }
+
+  .form-input, .form-textarea, .form-select {
+    @apply w-full px-3 py-2 bg-white border border-line rounded-lg
+           text-ink text-sm outline-none transition-all duration-150
+           placeholder:text-slate-400 shadow-sm;
+  }
+  .form-input:focus, .form-textarea:focus, .form-select:focus {
+    @apply border-primary ring-2 ring-primary/20;
+  }
+  .form-input.error, .form-textarea.error {
+    @apply border-danger ring-2 ring-danger/20;
+  }
+  .form-textarea { @apply resize-y min-h-[80px]; }
+
+  /* Badges */
+  .badge {
+    @apply inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full
+           text-xs font-medium;
+  }
+  .badge-draft     { @apply bg-slate-100 text-slate-600 border border-slate-200; }
+  .badge-scheduled { @apply bg-blue-50 text-blue-700 border border-blue-200; }
+  .badge-live      { @apply bg-indigo-50 text-indigo-700 border border-indigo-200; }
+  .badge-ended     { @apply bg-emerald-50 text-emerald-700 border border-emerald-200; }
+  .badge-open      { @apply bg-emerald-50 text-emerald-700 border border-emerald-200; }
+  .badge-closed    { @apply bg-slate-100 text-slate-600 border border-slate-200; }
+
+  /* Spinner */
+  .spinner    { @apply rounded-full border-slate-200 border-t-primary animate-[spin_0.7s_linear_infinite]; }
+  .spinner    { width: 20px; height: 20px; border-width: 2px; }
+  .spinner-sm { width: 14px; height: 14px; border-width: 2px; }
+  .spinner-lg { width: 32px; height: 32px; border-width: 3px; }
+
+  /* Alerts */
+  .alert         { @apply px-4 py-3 rounded-lg text-sm border flex items-start gap-3; }
+  .alert-error   { @apply bg-red-50 border-red-200 text-red-800; }
+  .alert-success { @apply bg-emerald-50 border-emerald-200 text-emerald-800; }
+  .alert-warning { @apply bg-amber-50 border-amber-200 text-amber-800; }
+  .alert-info    { @apply bg-blue-50 border-blue-200 text-blue-800; }
+
+  /* Toggle */
+  .toggle          { @apply relative w-10 h-5 cursor-pointer; }
+  .toggle input    { @apply sr-only; }
+  .toggle-slider   {
+    @apply absolute inset-0 bg-slate-300 rounded-full transition-colors duration-200;
+  }
+  .toggle-slider::before {
+    content: '';
+    @apply absolute w-4 h-4 left-[2px] top-[2px] bg-white rounded-full
+           transition-transform duration-200 shadow-sm;
+  }
+  .toggle input:checked + .toggle-slider   { @apply bg-primary; }
+  .toggle input:checked + .toggle-slider::before { transform: translateX(20px); }
+
+  /* Cards */
+  .card {
+    @apply bg-white border border-line rounded-xl shadow-sm;
+  }
+}
