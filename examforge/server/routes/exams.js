@@ -10,6 +10,7 @@ const {
   publishExam,
   endExam,
   getExamResults,
+  checkEligibility,
   joinExam,
   submitExam,
 } = require('../controllers/examController');
@@ -53,8 +54,9 @@ router.get('/:id/results', requireTeacher, getExamResults);
 
 // ─── Student Routes ───────────────────────────────────────────────────────────
 
-// POST /api/exams/attempt/join   — join exam with access code
-router.post('/attempt/join', requireStudent, joinExam);
+// POST /api/exams/attempt/eligibility - check if student can join
+router.post('/attempt/eligibility', requireStudent, checkEligibility);
+
 
 // POST /api/exams/attempt/submit — submit answers
 router.post('/attempt/submit', requireStudent, submitExam);

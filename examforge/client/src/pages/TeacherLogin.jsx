@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import api from '../api/axios';
+import { useTeacherLogin } from '../api/queries';
 import { useAuth } from '../context/AuthContext';
 import { getErrorMessage } from '../utils/helpers';
 
@@ -12,6 +12,7 @@ function TeacherLogin() {
   const [showPassword, setShowPassword] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
+  const { mutateAsync: teacherLogin } = useTeacherLogin();
 
   const validate = () => {
     const e = {};
@@ -29,7 +30,7 @@ function TeacherLogin() {
     setErrors({});
     setLoading(true);
     try {
-      const { data } = await api.post('/auth/teacher/login', form);
+      const data = await teacherLogin(form);
       login(data.token, data.teacher, 'teacher');
       navigate('/teacher/dashboard');
     } catch (err) {

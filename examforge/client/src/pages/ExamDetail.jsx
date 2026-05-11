@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import api from '../api/axios';
+import { useGetExam, useGetExamResults, useEndExam } from '../api/queries';
 import { useAuth } from '../context/AuthContext';
 import { formatDate, getErrorMessage, exportCSV } from '../utils/helpers';
 
@@ -45,6 +45,10 @@ function ExamDetail() {
   const navigate = useNavigate();
   const { user } = useAuth();
 
+  const { refetch: fetchExam } = useGetExam(id, false);
+  const { refetch: fetchExamResults } = useGetExamResults(id, false);
+  const { mutateAsync: endExam } = useEndExam();
+
   const [exam, setExam] = useState(null);
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -55,21 +59,22 @@ function ExamDetail() {
   const fetchData = useCallback(async () => {
     try {
       const [eRes, rRes] = await Promise.all([
-        api.get(`/exams/${id}`),
-        api.get(`/exams/${id}/results`).catch(() => ({ data: { results: [] } })),
+        fetchExam(),
+        fetchExamResults().catch(() => ({ data: { results: [] } })),
       ]);
+      if (eRes.isError) throw eRes.error;
       setExam(eRes.data);
-      setResults(rRes.data.results || []);
+      setResults(rRes.data?.results || []);
     } catch (err) { setError(getErrorMessage(err)); }
     finally { setLoading(false); }
-  }, [id]);
+  }, [id, fetchExam, fetchExamResults]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
   const handleEnd = async () => {
     if (!window.confirm('End this exam?')) return;
     setEnding(true);
-    try { await api.post(`/exams/${id}/end`); fetchData(); }
+    try { await endExam(id); fetchData(); }
     catch (err) { alert(getErrorMessage(err)); }
     finally { setEnding(false); }
   };

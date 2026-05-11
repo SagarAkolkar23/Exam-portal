@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import api from '../api/axios';
+import { useStudentLogin } from '../api/queries';
 import { useAuth } from '../context/AuthContext';
 import { getErrorMessage } from '../utils/helpers';
 
@@ -12,6 +12,7 @@ function StudentLogin() {
   const [showPassword, setShowPassword] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
+  const { mutateAsync: studentLogin } = useStudentLogin();
 
   const validate = () => {
     const e = {};
@@ -29,7 +30,7 @@ function StudentLogin() {
     setErrors({});
     setLoading(true);
     try {
-      const { data } = await api.post('/auth/student/login', form);
+      const data = await studentLogin(form);
       login(data.token, data.student, 'student');
       navigate('/student/join');
     } catch (err) {

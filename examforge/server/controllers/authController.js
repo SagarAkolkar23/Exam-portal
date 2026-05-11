@@ -62,6 +62,7 @@ const studentLogin = async (req, res, next) => {
 
     const { email, password } = req.body;
 
+    console.log("logged in student", { email, password })
     const student = await Student.findOne({ email }).select('+passwordHash');
     if (!student) {
       return res.status(401).json({ message: 'Invalid email or password.' });

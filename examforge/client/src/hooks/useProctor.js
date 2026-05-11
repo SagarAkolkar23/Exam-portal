@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback } from 'react';
-import api from '../api/axios';
+import { useProctorEvent } from '../api/queries';
 
 /**
  * Anti-cheat hook for ExamAttempt page.
@@ -18,6 +18,7 @@ export function useProctor(examId, studentId, submissionId, { onFullscreenExit, 
   const lastEventTimeRef = useRef({}); // debounce tracker
   const devtoolsFiredRef = useRef(false);
   const devtoolsIntervalRef = useRef(null);
+  const { mutateAsync: sendProctorEvent } = useProctorEvent();
 
   // ── Debounce helper ─────────────────────────────────────────────────────────
   const debounceEvent = useCallback((type, ms = 500) => {
@@ -37,12 +38,12 @@ export function useProctor(examId, studentId, submissionId, { onFullscreenExit, 
 
       // HTTP save
       try {
-        await api.post('/proctor/event', { examId, type, metadata });
+        await sendProctorEvent({ examId, type, metadata });
       } catch (err) {
         console.warn('[Proctor] HTTP event save failed:', err.message);
       }
     },
-    [enabled, examId, studentId]
+    [enabled, examId, studentId, sendProctorEvent]
   );
 
   // ── Fullscreen Lock ──────────────────────────────────────────────────────────

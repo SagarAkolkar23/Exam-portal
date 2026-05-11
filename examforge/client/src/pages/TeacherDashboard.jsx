@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import api from '../api/axios';
+import { useGetExams, useGetPolls, useAddTestStudent, useEndExam, useTogglePoll, useDeletePoll } from '../api/queries';
 import { useAuth } from '../context/AuthContext';
 import ExamCard from '../components/ExamCard';
 import PollCard from '../components/PollCard';
@@ -130,14 +130,22 @@ function TeacherDashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  const [exams, setExams] = useState([]);
-  const [polls, setPolls] = useState([]);
-  const [loadingExams, setLoadingExams] = useState(true);
-  const [loadingPolls, setLoadingPolls] = useState(true);
+  const { data: exams = [], isLoading: loadingExams, refetch: fetchExams, error: examsError } = useGetExams();
+  const { data: polls = [], isLoading: loadingPolls, refetch: fetchPolls } = useGetPolls();
+  
+  const { mutateAsync: addTestStudent } = useAddTestStudent();
+  const { mutateAsync: endExam } = useEndExam();
+  const { mutateAsync: togglePoll } = useTogglePoll();
+  const { mutateAsync: deletePoll } = useDeletePoll();
+
   const [error, setError] = useState('');
   const [liveViolations, setLiveViolations] = useState({});
   const [activeFilter, setActiveFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+
+  useEffect(() => {
+    if (examsError) setError(getErrorMessage(examsError));
+  }, [examsError]);
 
   // Temporary Add Student Modal
   const [showStudentModal, setShowStudentModal] = useState(false);
@@ -145,43 +153,12 @@ function TeacherDashboard() {
     name: '', email: '', rollNumber: '', department: '', year: 1, password: ''
   });
 
-  // ── Data fetching ──────────────────────────────────────────────────────────
-
-  const fetchExams = useCallback(async () => {
-    try {
-      const { data } = await api.get('/exams');
-      setExams(data);
-    } catch (err) {
-      setError(getErrorMessage(err));
-    } finally {
-      setLoadingExams(false);
-    }
-  }, []);
-
-  const fetchPolls = useCallback(async () => {
-    try {
-      const { data } = await api.get('/polls');
-      setPolls(data);
-    } catch {
-      /* silent */
-    } finally {
-      setLoadingPolls(false);
-    }
-  }, []);
-
-  useEffect(() => { fetchExams(); fetchPolls(); }, [fetchExams, fetchPolls]);
-  useEffect(() => {
-    const t = setInterval(fetchPolls, 10000);
-    return () => clearInterval(t);
-  }, [fetchPolls]);
-
   // ── Actions ────────────────────────────────────────────────────────────────
-
 
   const handleAddTestStudent = async (e) => {
     e.preventDefault();
     try {
-      await api.post('/students/seed', [testStudent]);
+      await addTestStudent([testStudent]);
       alert('Student added successfully!');
       setShowStudentModal(false);
       setTestStudent({ name: '', email: '', rollNumber: '', department: '', year: 1, password: '' });
@@ -192,18 +169,18 @@ function TeacherDashboard() {
 
   const handleEndExam = async (examId) => {
     if (!window.confirm('End this exam? This cannot be undone.')) return;
-    try { await api.post(`/exams/${examId}/end`); fetchExams(); }
+    try { await endExam(examId); fetchExams(); }
     catch (err) { alert(getErrorMessage(err)); }
   };
 
   const handleTogglePoll = async (pollId, isOpen) => {
-    try { await api.post(`/polls/${pollId}/${isOpen ? 'close' : 'open'}`); fetchPolls(); }
+    try { await togglePoll({ pollId, isOpen }); fetchPolls(); }
     catch (err) { alert(getErrorMessage(err)); }
   };
 
   const handleDeletePoll = async (pollId) => {
     if (!window.confirm('Delete this poll?')) return;
-    try { await api.delete(`/polls/${pollId}`); fetchPolls(); }
+    try { await deletePoll(pollId); fetchPolls(); }
     catch (err) { alert(getErrorMessage(err)); }
   };
 

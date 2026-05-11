@@ -4,67 +4,12 @@ const Question = require('../models/Question');
 const Submission = require('../models/Submission');
 const ProctoringEvent = require('../models/ProctoringEvent');
 const { getShuffleMap, unshuffleIndex, generateAccessCode } = require('../utils/shuffle');
+const { autoUpdateStatus, stripCorrectIndex } = require('../helpers');
 
 
-const stripCorrectIndex = (questions) =>
-  questions.map((q) => {
-    const base = { _id: q._id, text: q.text, type: q.type || 'mcq', marks: q.marks };
-    if ((q.type || 'mcq') === 'mcq') base.options = q.options;
-    return base;
-  });
 
-/**
- * Validate question objects provided by the teacher.
- * Returns an error string or null when valid.
- */
-const validateQuestions = (questions) => {
-  for (let i = 0; i < questions.length; i++) {
-    const q = questions[i];
-    const type = q.type || 'mcq';
 
-    if (!q.text || !q.text.trim()) return `Question ${i + 1}: text is required.`;
 
-    if (type === 'mcq') {
-      if (!Array.isArray(q.options) || q.options.length !== 4)
-        return `Question ${i + 1}: MCQ must have exactly 4 options.`;
-      if (q.options.some((o) => !o || !o.trim()))
-        return `Question ${i + 1}: all 4 options must be filled.`;
-      if (q.correctIndex === undefined || q.correctIndex === null || q.correctIndex < 0 || q.correctIndex > 3)
-        return `Question ${i + 1}: a correct answer must be selected.`;
-    }
-  }
-  return null;
-};
-
-/**
- * Lazily auto-update exam status based on current time.
- * Draft exams are never auto-changed.
- */
-const autoUpdateStatus = async (exam) => {
-  const now = new Date();
-  let newStatus = exam.status;
-
-  if (exam.status === 'draft') return exam;
-
-  if (exam.status === 'scheduled' && exam.scheduledStart && now >= exam.scheduledStart)
-    newStatus = 'live';
-
-  if ((exam.status === 'live' || exam.status === 'scheduled') && exam.scheduledEnd && now >= exam.scheduledEnd)
-    newStatus = 'ended';
-
-  if (newStatus !== exam.status) {
-    exam.status = newStatus;
-    await exam.save();
-  }
-  return exam;
-};
-
-// ─── Teacher Controllers ───────────────────────────────────────────────────────
-
-/**
- * POST /api/exams
- * Create a new exam (draft).
- */
 const createExam = async (req, res, next) => {
   try {
     const errors = validationResult(req);
@@ -75,8 +20,9 @@ const createExam = async (req, res, next) => {
     const {
       title, description, duration, scheduledStart, scheduledEnd, latestJoinTime,
       questions, assignedStudents, shuffleOptions, showResultAfterSubmit,
-      totalMarks, rules,
+      totalMarks, rules, status
     } = req.body;
+    console.log(req.body)
 
     if (questions && questions.length > 0) {
       const err = validateQuestions(questions);
@@ -97,7 +43,7 @@ const createExam = async (req, res, next) => {
       totalMarks: totalMarks !== undefined ? Number(totalMarks) : 0,
       rules: Array.isArray(rules) ? rules.filter((r) => r && r.trim()) : [],
       createdBy: req.user.id,
-      status: 'draft',
+      status: status,
       accessCode: generateAccessCode(),
     });
 
@@ -118,10 +64,7 @@ const createExam = async (req, res, next) => {
   }
 };
 
-/**
- * GET /api/exams
- * List all exams created by the authenticated teacher.
- */
+
 const listExams = async (req, res, next) => {
   try {
     const exams = await Exam.find({ createdBy: req.user.id })
@@ -149,10 +92,7 @@ const listExams = async (req, res, next) => {
   }
 };
 
-/**
- * GET /api/exams/:id
- * Get a single exam's detail (teacher view).
- */
+
 const getExam = async (req, res, next) => {
   try {
     let exam = await Exam.findOne({ _id: req.params.id, createdBy: req.user.id })
@@ -172,10 +112,7 @@ const getExam = async (req, res, next) => {
   }
 };
 
-/**
- * PUT /api/exams/:id
- * Update a draft exam.
- */
+
 const updateExam = async (req, res, next) => {
   try {
     const exam = await Exam.findOne({ _id: req.params.id, createdBy: req.user.id });
@@ -223,6 +160,7 @@ const updateExam = async (req, res, next) => {
     if (showResultAfterSubmit !== undefined) exam.showResultAfterSubmit = showResultAfterSubmit;
     if (totalMarks !== undefined) exam.totalMarks = Number(totalMarks);
     if (rules !== undefined) exam.rules = Array.isArray(rules) ? rules.filter((r) => r && r.trim()) : [];
+    if (req.body.status !== undefined) exam.status = req.body.status;
 
     await exam.save();
 
@@ -234,10 +172,7 @@ const updateExam = async (req, res, next) => {
   }
 };
 
-/**
- * DELETE /api/exams/:id
- * Delete a draft exam.
- */
+
 const deleteExam = async (req, res, next) => {
   try {
     const exam = await Exam.findOne({ _id: req.params.id, createdBy: req.user.id });
@@ -282,10 +217,7 @@ const publishExam = async (req, res, next) => {
   }
 };
 
-/**
- * POST /api/exams/:id/end
- * Manually end a live or scheduled exam.
- */
+
 const endExam = async (req, res, next) => {
   try {
     const exam = await Exam.findOne({ _id: req.params.id, createdBy: req.user.id });
@@ -355,10 +287,10 @@ const getExamResults = async (req, res, next) => {
 // ─── Student Controllers ───────────────────────────────────────────────────────
 
 /**
- * POST /api/exams/attempt/join
- * Student joins an exam using an access code.
+ * POST /api/exams/attempt/eligibility
+ * Check if student is eligible to take the exam via access code.
  */
-const joinExam = async (req, res, next) => {
+const checkEligibility = async (req, res, next) => {
   try {
     const { accessCode } = req.body;
     const studentId = req.user.id;
@@ -367,11 +299,10 @@ const joinExam = async (req, res, next) => {
       return res.status(400).json({ message: 'Access code is required.' });
     }
 
-    const exam = await Exam.findOne({ accessCode: accessCode.toUpperCase() }).populate('questions');
+    const exam = await Exam.findOne({ accessCode: accessCode.toUpperCase() });
     if (!exam) return res.status(404).json({ message: 'Invalid access code. No exam found.' });
 
     await autoUpdateStatus(exam);
-    await exam.save();
 
     if (exam.status === 'draft') return res.status(403).json({ message: 'This exam is not yet published.' });
     if (exam.status === 'scheduled') {
@@ -393,65 +324,28 @@ const joinExam = async (req, res, next) => {
       return res.status(400).json({ message: 'You have already submitted this exam.' });
     }
 
-    let submission = existing;
-    if (!submission) {
-      const seed = (Math.random() * 10000) | 0;
-      submission = await Submission.create({
-        examId: exam._id,
-        studentId,
-        seed,
-        answers: exam.questions.map((q) => ({
-          questionId: q._id,
-          selectedIndex: (q.type || 'mcq') === 'mcq' ? -1 : undefined,
-          textAnswer: (q.type || 'mcq') === 'descriptive' ? '' : undefined,
-          marksAwarded: 0,
-        })),
-        totalQuestions: exam.questions.length,
-        ipAddress: req.ip,
-        userAgent: req.headers['user-agent'] || '',
-      });
-    }
-
-    // Build questions for the student (MCQ options shuffled, correctIndex stripped)
-    const shuffledQuestions = exam.questions.map((q, idx) => {
-      const type = q.type || 'mcq';
-      const qObj = { _id: q._id, text: q.text, type, marks: q.marks };
-
-      if (type === 'mcq') {
-        qObj.options = [...q.options];
-        if (exam.shuffleOptions) {
-          const shuffleMap = getShuffleMap(submission.seed, idx);
-          qObj.options = shuffleMap.map((origIdx) => q.options[origIdx]);
-        }
-      }
-
-      return qObj;
-    });
-
     res.json({
       exam: {
         _id: exam._id,
         title: exam.title,
         description: exam.description,
         duration: exam.duration,
+        scheduledStart: exam.scheduledStart,
         scheduledEnd: exam.scheduledEnd,
+        latestJoinTime: exam.latestJoinTime,
         shuffleOptions: exam.shuffleOptions,
         showResultAfterSubmit: exam.showResultAfterSubmit,
         totalMarks: exam.totalMarks,
         rules: exam.rules,
-        questions: shuffledQuestions,
-      },
-      submission: {
-        _id: submission._id,
-        seed: submission.seed,
-        startedAt: submission.startedAt,
-        answers: submission.answers,
-      },
+        totalQuestions: exam.questions.length,
+      }
     });
   } catch (err) {
     next(err);
   }
 };
+
+
 
 /**
  * POST /api/exams/attempt/submit
@@ -568,6 +462,6 @@ module.exports = {
   publishExam,
   endExam,
   getExamResults,
-  joinExam,
+  checkEligibility,
   submitExam,
 };

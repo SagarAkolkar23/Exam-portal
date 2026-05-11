@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import api from '../api/axios';
+import { useCreatePoll } from '../api/queries';
 import { getErrorMessage } from '../utils/helpers';
 
 function CreatePoll() {
@@ -11,6 +11,8 @@ function CreatePoll() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  const { mutateAsync: createPoll } = useCreatePoll();
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -18,7 +20,7 @@ function CreatePoll() {
     if (options.some((o) => !o.trim())) { setError('All options must have text.'); return; }
     setLoading(true);
     try {
-      await api.post('/polls', { title, question, options: options.map((text) => ({ text })) });
+      await createPoll({ title, question, options: options.map((text) => ({ text })) });
       navigate('/teacher/dashboard');
     } catch (err) { setError(getErrorMessage(err)); }
     finally { setLoading(false); }

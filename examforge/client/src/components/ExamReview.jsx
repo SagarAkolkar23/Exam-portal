@@ -10,11 +10,29 @@ function ExamReview({
   onSave,
 }) {
   const [reviewSlide, setReviewSlide] = useState(0); // 0: Basic, 1: Rules, 2: Questions
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [scheduleData, setScheduleData] = useState({ scheduledStart: '', latestJoinTime: '' });
 
   const sumMarks = questions.reduce((acc, q) => acc + (q.marks || 1), 0);
   const mcqCount = questions.filter((q) => (q.type || 'mcq') === 'mcq').length;
   const descCount = questions.filter((q) => q.type === 'descriptive').length;
   const cleanRulesPreview = rules.filter((r) => r.trim());
+
+  const handleScheduleSubmit = () => {
+    if (!scheduleData.scheduledStart) {
+      alert('Please select a scheduled start time.');
+      return;
+    }
+    const start = new Date(scheduleData.scheduledStart);
+    const end = new Date(start.getTime() + basic.duration * 60000);
+    
+    onSave('scheduled', {
+      scheduledStart: start.toISOString(),
+      scheduledEnd: end.toISOString(),
+      latestJoinTime: scheduleData.latestJoinTime ? new Date(scheduleData.latestJoinTime).toISOString() : undefined,
+    });
+    setShowScheduleModal(false);
+  };
 
   return (
     <div className="space-y-6">
@@ -75,18 +93,6 @@ function ExamReview({
                     {basic.totalMarks !== '' && Number(basic.totalMarks) > 0
                       ? Number(basic.totalMarks)
                       : `${sumMarks} (from questions)`}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-xs text-slate-500 font-bold uppercase mb-1">Scheduled Start</div>
-                  <div className="text-sm font-medium text-ink">
-                    {basic.scheduledStart ? new Date(basic.scheduledStart).toLocaleString() : 'Not scheduled'}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-xs text-slate-500 font-bold uppercase mb-1">Latest Joining Time</div>
-                  <div className="text-sm font-medium text-ink">
-                    {basic.latestJoinTime ? new Date(basic.latestJoinTime).toLocaleString() : 'Anytime after start'}
                   </div>
                 </div>
                 <div>
@@ -215,23 +221,66 @@ function ExamReview({
               Slide →
             </button>
           </div>
-          <div className="flex gap-4">
-            <button className="btn btn-secondary btn-lg" onClick={() => onSave(false)} disabled={loading}>
+          <div className="flex gap-3 flex-wrap justify-end">
+            <button className="btn btn-secondary btn-lg" onClick={() => onSave('draft')} disabled={loading}>
               Save as Draft
             </button>
-            <button className="btn btn-primary btn-lg" onClick={() => onSave(true)} disabled={loading}>
+            <button className="btn btn-primary btn-lg" onClick={() => onSave('live')} disabled={loading}>
               {loading ? (
-                <>
-                  <span className="spinner spinner-sm border-white/30 border-t-white" />
-                  Publishing...
-                </>
+                <><span className="spinner spinner-sm border-white/30 border-t-white" /> Publishing...</>
               ) : (
-                'Publish Exam'
+                'Publish Now'
               )}
+            </button>
+            <button className="btn bg-indigo-600 text-white hover:bg-indigo-700 btn-lg" onClick={() => setShowScheduleModal(true)} disabled={loading}>
+              Schedule Exam
             </button>
           </div>
         </div>
       </div>
+
+      {showScheduleModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-[fadeInUp_0.2s_ease]">
+            <div className="px-6 py-4 border-b border-line flex items-center justify-between">
+              <h3 className="font-bold text-ink text-lg">Schedule Exam</h3>
+              <button onClick={() => setShowScheduleModal(false)} className="text-slate-400 hover:text-ink transition-colors">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-4">
+              <div className="form-group">
+                <label className="form-label text-slate-500">SCHEDULED START TIME *</label>
+                <input
+                  type="datetime-local"
+                  className="form-input py-2.5"
+                  value={scheduleData.scheduledStart}
+                  onChange={(e) => setScheduleData(prev => ({ ...prev, scheduledStart: e.target.value }))}
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label text-slate-500">LATEST JOINING TIME</label>
+                <input
+                  type="datetime-local"
+                  className="form-input py-2.5"
+                  value={scheduleData.latestJoinTime}
+                  onChange={(e) => setScheduleData(prev => ({ ...prev, latestJoinTime: e.target.value }))}
+                />
+                <p className="text-xs text-slate-400 mt-1">
+                  Students cannot join after this time. Leave empty to allow joining anytime.
+                </p>
+              </div>
+            </div>
+
+            <div className="px-6 py-4 bg-slate-50 border-t border-line flex items-center justify-end gap-3">
+              <button className="btn btn-secondary" onClick={() => setShowScheduleModal(false)}>Cancel</button>
+              <button className="btn btn-primary" onClick={handleScheduleSubmit}>Schedule</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

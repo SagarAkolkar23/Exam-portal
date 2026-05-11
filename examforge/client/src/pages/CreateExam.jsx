@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import api from '../api/axios';
+import { useGetExam, useGetStudents, useCreateExam, useUpdateExam, usePublishExam } from '../api/queries';
 import QuestionBuilder from '../components/QuestionBuilder';
 import ExamReview from '../components/ExamReview';
 import { getErrorMessage } from '../utils/helpers';
@@ -28,23 +28,26 @@ function CreateExam({ isEditing = false }) {
   const [search, setSearch] = useState('');
   const [loadingStudents, setLoadingStudents] = useState(false);
 
-  // Auto-compute scheduledEnd from start + duration
-  useEffect(() => {
-    if (basic.scheduledStart && basic.duration) {
-      const start = new Date(basic.scheduledStart);
-      if (!isNaN(start)) {
-        const end = new Date(start.getTime() + basic.duration * 60000);
-        setBasic((f) => ({ ...f, scheduledEnd: end.toISOString().slice(0, 16) }));
-      }
-    }
-  }, [basic.scheduledStart, basic.duration]);
+  const { mutateAsync: createExam } = useCreateExam();
+  const { mutateAsync: updateExam } = useUpdateExam();
+  const { mutateAsync: publishExam } = usePublishExam();
+
+  const { refetch: fetchExam } = useGetExam(id, false);
+  const { refetch: fetchStudents } = useGetStudents(false);
+
+  // No longer auto-computing scheduledEnd here as it's moved to the modal.
 
   // Load existing exam if editing
   useEffect(() => {
     if (isEditing && id) {
       setLoading(true);
-      api.get(`/exams/${id}`)
-        .then(({ data }) => {
+      fetchExam()
+        .then(({ data, isError, error: fetchErr }) => {
+          if (isError) {
+            setError(getErrorMessage(fetchErr));
+            return;
+          }
+          if (!data) return;
           const d = data.scheduledStart ? new Date(data.scheduledStart) : null;
           const lj = data.latestJoinTime ? new Date(data.latestJoinTime) : null;
           const fullState = {
@@ -75,9 +78,8 @@ function CreateExam({ isEditing = false }) {
   useEffect(() => {
     if ((step !== 3 && !isEditing) || students.length) return;
     setLoadingStudents(true);
-    api
-      .get('/students')
-      .then(({ data }) => setStudents(data))
+    fetchStudents()
+      .then(({ data }) => setStudents(data || []))
       .catch(() => {})
       .finally(() => setLoadingStudents(false));
   }, [step, isEditing]);
@@ -142,7 +144,7 @@ function CreateExam({ isEditing = false }) {
     setSelected((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
 
   // ── Save / Publish ─────────────────────────────────────────────────────────
-  const handleSave = async (publish = false) => {
+  const handleSave = async (status, scheduleData = {}) => {
     if (!validate()) return;
     setLoading(true);
     setError('');
@@ -152,23 +154,19 @@ function CreateExam({ isEditing = false }) {
         ...basic,
         duration: Number(basic.duration),
         totalMarks: basic.totalMarks !== '' ? Number(basic.totalMarks) : 0,
-        scheduledStart: basic.scheduledStart || undefined,
-        scheduledEnd: basic.scheduledEnd || undefined,
-        latestJoinTime: basic.latestJoinTime || undefined,
         questions,
         assignedStudents: selected,
         rules: cleanRules,
+        status,
+        ...scheduleData
       };
 
-      let examId = id;
       if (isEditing && id) {
-        await api.put(`/exams/${id}`, payload);
+        await updateExam({ id, payload });
       } else {
-        const { data } = await api.post('/exams', payload);
-        examId = data._id;
+        await createExam(payload);
       }
       
-      if (publish) await api.post(`/exams/${examId}/publish`);
       clearExamState();
       navigate('/teacher/dashboard');
     } catch (err) {
@@ -277,31 +275,6 @@ function CreateExam({ isEditing = false }) {
               />
               <p className="text-xs text-slate-400 mt-1">
                 Displayed to students as "out of X". Leave 0 to auto-sum from question marks.
-              </p>
-            </div>
-
-            {/* Scheduled Start */}
-            <div className="form-group">
-              <label className="form-label text-slate-500">SCHEDULED START TIME</label>
-              <input
-                type="datetime-local"
-                className="form-input py-2.5"
-                value={basic.scheduledStart}
-                onChange={(e) => setBasic((f) => ({ ...f, scheduledStart: e.target.value }))}
-              />
-            </div>
-
-            {/* Latest Join Time */}
-            <div className="form-group">
-              <label className="form-label text-slate-500">JOINING TIME</label>
-              <input
-                type="datetime-local"
-                className="form-input py-2.5"
-                value={basic.latestJoinTime}
-                onChange={(e) => setBasic((f) => ({ ...f, latestJoinTime: e.target.value }))}
-              />
-              <p className="text-xs text-slate-400 mt-1">
-                Students cannot join after this time. Leave empty to allow joining anytime.
               </p>
             </div>
 
