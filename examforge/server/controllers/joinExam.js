@@ -1,18 +1,19 @@
-const { autoUpdateStatus } = require('../helpers');
-const Exam = require('../models/Exam');
-const Submission = require('../models/Submission');
-const { getShuffleMap } = require('../utils/shuffle');
+const { autoUpdateStatus } = require("../helpers");
+const Exam = require("../models/Exam");
+const Question = require("../models/Question");
+const Submission = require("../models/Submission");
+const Attendance = require("../models/attendance");
+const Result = require("../models/result");
+const { generateOrder } = require("../utils/shuffle");
 
-
-
-const joinExam = async (req, res, next) => {
+const getExamDetails = async (req, res, next) => {
   try {
     const { accessCode } = req.body;
     const studentId = req.user.id;
 
     if (!accessCode) {
       return res.status(400).json({
-        message: 'Access code is required.',
+        message: "Access code is required.",
       });
     }
 
@@ -22,48 +23,45 @@ const joinExam = async (req, res, next) => {
 
     if (!exam) {
       return res.status(404).json({
-        message: 'Invalid access code. No exam found.',
+        message: "Invalid access code. No exam found.",
       });
     }
 
     await autoUpdateStatus(exam);
     await exam.save();
 
-    if (exam.status === 'draft') {
+    if (exam.status === "draft") {
       return res.status(403).json({
-        message: 'This exam is not yet published.',
+        message: "This exam is not yet published.",
       });
     }
 
-    if (exam.status === 'scheduled') {
+    if (exam.status === "scheduled") {
       return res.status(403).json({
-        message: 'Exam has not started yet.',
+        message: "Exam has not started yet.",
         scheduledStart: exam.scheduledStart,
       });
     }
 
-    if (exam.status === 'ended') {
+    if (exam.status === "ended") {
       return res.status(403).json({
-        message: 'This exam has ended.',
+        message: "This exam has ended.",
       });
     }
 
-    if (
-      exam.latestJoinTime &&
-      new Date() > exam.latestJoinTime
-    ) {
+    if (exam.latestJoinTime && new Date() > exam.latestJoinTime) {
       return res.status(403).json({
-        message: 'The joining window for this exam has closed.',
+        message: "The joining window for this exam has closed.",
       });
     }
 
     const isAssigned = exam.assignedStudents.some(
-      (s) => s.toString() === studentId
+      (s) => s.toString() === studentId,
     );
 
     if (!isAssigned) {
       return res.status(403).json({
-        message: 'You are not assigned to this exam.',
+        message: "You are not assigned to this exam.",
       });
     }
 
@@ -74,7 +72,7 @@ const joinExam = async (req, res, next) => {
 
     if (existingSubmission?.submittedAt) {
       return res.status(400).json({
-        message: 'You have already submitted this exam.',
+        message: "You have already submitted this exam.",
       });
     }
 
@@ -97,5 +95,552 @@ const joinExam = async (req, res, next) => {
   }
 };
 
+const startExam = async (req, res, next) => {
+  try {
+    const { examId } = req.body;
 
-module.exports = joinExam;
+    const studentId = req.user.id;
+
+    if (!examId) {
+      return res.status(400).json({
+        message: "Exam ID is required.",
+      });
+    }
+
+    const exam = await Exam.findById(examId);
+
+    if (!exam) {
+      return res.status(404).json({
+        message: "Exam not found.",
+      });
+    }
+
+    await autoUpdateStatus(exam);
+
+    await exam.save();
+
+    if (exam.status !== "live") {
+      return res.status(403).json({
+        message: "Exam is not live.",
+      });
+    }
+
+    let questions = await Question.find({
+      examId,
+    })
+      .sort({ createdAt: 1 })
+      .select("question options marks type");
+
+    if (!questions.length) {
+      return res.status(404).json({
+        message: "No questions found.",
+      });
+    }
+
+    let attendance = await Attendance.findOne({
+      examId,
+      studentId,
+    });
+
+    let paperSet;
+    let questionOrder;
+    let optionOrders;
+
+    if (!attendance) {
+      paperSet = Math.floor(Math.random() * 8) + 1;
+
+      questionOrder = generateOrder(questions.length, paperSet);
+
+      optionOrders = {};
+
+      questions.forEach((q, index) => {
+        optionOrders[q._id.toString()] = generateOrder(
+          q.options.length,
+          paperSet + index,
+        );
+      });
+
+      attendance = await Attendance.create({
+        examId,
+        studentId,
+        paperSet,
+        questionOrder,
+        optionOrders,
+        deviceInfo: {
+          userAgent: req.headers["user-agent"],
+          ipAddress: req.ip,
+        },
+      });
+    } else {
+      attendance.lastSeenAt = new Date();
+      attendance.reconnectCount += 1;
+      await attendance.save();
+      paperSet = attendance.paperSet;
+      questionOrder = attendance.questionOrder;
+      optionOrders = attendance.optionOrders;
+    }
+    questions = questionOrder.map((index) => questions[index]);
+    questions = questions.map((q) => {
+      const order = optionOrders[q._id.toString()];
+      const shuffledOptions = order.map((index) => q.options[index]);
+
+      return {
+        ...q.toObject(),
+        options: shuffledOptions,
+      };
+    });
+
+    let submission = await Submission.findOne({
+      examId,
+      studentId,
+    });
+
+    if (submission?.status === "submitted") {
+      return res.status(400).json({
+        message: "Exam already submitted.",
+      });
+    }
+
+    if (!submission) {
+      submission = await Submission.create({
+        examId,
+        studentId,
+
+        paperSet,
+
+        startedAt: new Date(),
+
+        status: "in_progress",
+
+        currentQuestionIndex: 0,
+
+        answers: [],
+
+        ipAddress: req.ip,
+
+        userAgent: req.headers["user-agent"],
+      });
+    }
+
+    // TIMER
+    const durationInSeconds = exam.duration * 60;
+
+    const elapsed = Math.floor(
+      (Date.now() - submission.startedAt.getTime()) / 1000,
+    );
+
+    const remainingTime = Math.max(durationInSeconds - elapsed, 0);
+
+    // AUTO SUBMIT IF EXPIRED
+    if (remainingTime <= 0) {
+      submission.status = "auto_submitted";
+
+      submission.submittedAt = new Date();
+
+      await submission.save();
+
+      return res.status(403).json({
+        message: "Exam time expired.",
+      });
+    }
+
+    return res.json({
+      exam: {
+        _id: exam._id,
+        title: exam.title,
+        duration: exam.duration,
+      },
+
+      paperSet,
+
+      startedAt: submission.startedAt,
+
+      remainingTime,
+
+      currentQuestionIndex: submission.currentQuestionIndex,
+
+      savedAnswers: submission.answers,
+
+      serverTime: Date.now(),
+
+      questions,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+const heartbeat = async (req, res, next) => {
+  try {
+    const { examId } = req.params;
+    const studentId = req.user.id;
+    const submission = await Submission.findOne({
+      examId,
+      studentId,
+    });
+    if (!submission) {
+      return res.status(404).json({
+        message: "Submission not found.",
+      });
+    }
+
+    const exam = await Exam.findById(examId);
+
+    if (!exam) {
+      return res.status(404).json({
+        message: "Exam not found.",
+      });
+    }
+
+    const durationInSeconds = exam.duration * 60;
+
+    const elapsed = Math.floor(
+      (Date.now() - submission.startedAt.getTime()) / 1000,
+    );
+
+    const remainingTime = Math.max(durationInSeconds - elapsed, 0);
+
+    if (remainingTime <= 0 && submission.status === "in_progress") {
+      submission.status = "auto_submitted";
+      submission.submittedAt = new Date();
+      await submission.save();
+    }
+
+    await Attendance.updateOne(
+      {
+        examId,
+        studentId,
+      },
+      {
+        lastSeenAt: new Date(),
+      },
+    );
+
+    return res.json({
+      remainingTime,
+
+      status: submission.status,
+
+      currentQuestionIndex: submission.currentQuestionIndex,
+
+      serverTime: Date.now(),
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+const finalSubmit = async (req, res, next) => {
+  try {
+    const studentId = req.user.id;
+
+    const { examId, answers } = req.body;
+
+    // VALIDATION
+    if (!examId) {
+      return res.status(400).json({
+        message: "Exam ID is required.",
+      });
+    }
+
+    if (!answers || !Array.isArray(answers)) {
+      return res.status(400).json({
+        message: "Answers array is required.",
+      });
+    }
+
+    // FIND EXAM
+    const exam = await Exam.findById(examId);
+
+    if (!exam) {
+      return res.status(404).json({
+        message: "Exam not found.",
+      });
+    }
+
+    // FIND SUBMISSION
+    const submission = await Submission.findOne({
+      examId,
+      studentId,
+    });
+
+    if (!submission) {
+      return res.status(404).json({
+        message: "Submission not found.",
+      });
+    }
+
+    // PREVENT DOUBLE SUBMIT
+    if (
+      submission.status === "submitted" ||
+      submission.status === "auto_submitted"
+    ) {
+      return res.status(400).json({
+        message: "Exam already submitted.",
+      });
+    }
+
+    // FIND ATTENDANCE
+    const attendance = await Attendance.findOne({
+      examId,
+      studentId,
+    });
+
+    if (!attendance) {
+      return res.status(404).json({
+        message: "Attendance not found.",
+      });
+    }
+
+    // TIMER CHECK
+    const durationInSeconds = exam.duration * 60;
+
+    const elapsed = Math.floor(
+      (Date.now() - submission.startedAt.getTime()) / 1000,
+    );
+
+    const remainingTime = Math.max(durationInSeconds - elapsed, 0);
+
+    // FETCH QUESTIONS
+    const questions = await Question.find({
+      examId,
+    }).select(
+      `
+        question
+        options
+        correctAnswer
+        marks
+        type
+        explanation
+        `,
+    );
+
+    // QUESTION MAP
+    const questionMap = {};
+
+    questions.forEach((q) => {
+      questionMap[q._id.toString()] = q;
+    });
+
+    // RESULT STATS
+    let totalScore = 0;
+
+    let correctAnswers = 0;
+
+    let wrongAnswers = 0;
+
+    let unanswered = 0;
+
+    const correctQuestions = [];
+
+    const incorrectQuestions = [];
+
+    const unansweredQuestions = [];
+
+    // PROCESS ANSWERS
+    const processedAnswers = answers.map((answer) => {
+      const question = questionMap[answer.questionId];
+
+      if (!question) {
+        return {
+          ...answer,
+          marksAwarded: 0,
+        };
+      }
+
+      let marksAwarded = 0;
+
+      let isCorrect = false;
+
+      // UNANSWERED
+      if (answer.selectedIndex === -1 || answer.selectedIndex === undefined) {
+        unanswered++;
+
+        unansweredQuestions.push({
+          questionId: question._id,
+
+          question: question.question,
+        });
+      }
+
+      // MCQ GRADING
+      else if (question.type === "mcq") {
+        // GET SHUFFLE MAP
+        const optionOrder = attendance.optionOrders.get(
+          question._id.toString(),
+        );
+
+        // REVERSE MAP
+        const originalIndex = optionOrder[answer.selectedIndex];
+
+        // CHECK ANSWER
+        if (originalIndex === question.correctAnswer) {
+          isCorrect = true;
+
+          marksAwarded = question.marks || 1;
+
+          correctAnswers++;
+
+          correctQuestions.push({
+            questionId: question._id,
+
+            question: question.question,
+
+            selectedOption: question.options[originalIndex],
+
+            correctOption: question.options[question.correctAnswer],
+
+            marksAwarded,
+          });
+        } else {
+          wrongAnswers++;
+
+          incorrectQuestions.push({
+            questionId: question._id,
+
+            question: question.question,
+
+            selectedOption: question.options[originalIndex],
+
+            correctOption: question.options[question.correctAnswer],
+
+            explanation: question.explanation || "",
+
+            marksAwarded: 0,
+          });
+        }
+      }
+
+      totalScore += marksAwarded;
+
+      return {
+        questionId: answer.questionId,
+
+        selectedIndex: answer.selectedIndex ?? -1,
+
+        textAnswer: answer.textAnswer || "",
+
+        answeredAt: answer.answeredAt || new Date(),
+
+        marksAwarded,
+
+        isCorrect,
+      };
+    });
+
+    // TOTAL MARKS
+    const totalMarks = questions.reduce((sum, q) => sum + (q.marks || 1), 0);
+
+    // PERCENTAGE
+    const percentage =
+      totalMarks > 0 ? Number(((totalScore / totalMarks) * 100).toFixed(2)) : 0;
+
+    // UPDATE SUBMISSION
+    submission.answers = processedAnswers;
+
+    submission.score = totalScore;
+
+    submission.totalQuestions = questions.length;
+
+    submission.percentage = percentage;
+
+    submission.submittedAt = new Date();
+
+    submission.lastSyncedAt = new Date();
+
+    submission.status = remainingTime <= 0 ? "auto_submitted" : "submitted";
+
+    // SAVE SUBMISSION FIRST
+    await submission.save();
+
+    // CREATE RESULT
+    await Result.create({
+      examId,
+
+      studentId,
+
+      submissionId: submission._id,
+
+      score: totalScore,
+
+      totalMarks,
+
+      percentage,
+
+      correctAnswers,
+
+      wrongAnswers,
+
+      unanswered,
+
+      submittedAt: submission.submittedAt,
+
+      status: submission.status,
+    });
+
+    // UPDATE ATTENDANCE
+    await Attendance.updateOne(
+      {
+        examId,
+        studentId,
+      },
+      {
+        status: "submitted",
+        lastSeenAt: new Date(),
+      },
+    );
+
+    // BASE RESPONSE
+    const baseResponse = {
+      message:
+        submission.status === "auto_submitted"
+          ? "Exam auto-submitted due to timeout."
+          : "Exam submitted successfully.",
+
+      submitted: true,
+    };
+
+    // IF RESULTS ARE HIDDEN
+    if (!exam.showResultAfterSubmit) {
+      return res.json(baseResponse);
+    }
+
+    // SHOW RESULT
+    return res.json({
+      ...baseResponse,
+
+      result: {
+        score: totalScore,
+
+        totalMarks,
+
+        percentage,
+
+        correctAnswers,
+
+        wrongAnswers,
+
+        unanswered,
+
+        submittedAt: submission.submittedAt,
+
+        status: submission.status,
+
+        correctQuestions,
+
+        incorrectQuestions,
+
+        unansweredQuestions,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+module.exports = {
+  getExamDetails,
+  startExam,
+  heartbeat,
+  finalSubmit,
+};

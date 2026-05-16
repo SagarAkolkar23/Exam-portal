@@ -3,7 +3,6 @@ const { body } = require('express-validator');
 const { requireTeacher, requireStudent } = require('../middleware/auth');
 const { recordEvent, getEvents, VALID_TYPES } = require('../controllers/proctorController');
 
-// POST /api/proctor/event                          — student records a proctoring event
 router.post(
   '/event',
   requireStudent,
@@ -14,7 +13,6 @@ router.post(
   recordEvent
 );
 
-// GET /api/proctor/events/:examId/:studentId        — teacher views events for a student
 router.get('/events/:examId/:studentId', requireTeacher, getEvents);
 
 module.exports = router;

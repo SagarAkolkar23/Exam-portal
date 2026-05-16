@@ -6,24 +6,27 @@ const AnswerSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       required: true,
     },
-    // For MCQ questions
+
     selectedIndex: {
       type: Number,
-      min: -1, // -1 means unanswered
-      max: 3,
       default: -1,
     },
-    // For descriptive questions
+
     textAnswer: {
       type: String,
       default: '',
       trim: true,
     },
-    // Marks awarded by teacher (for descriptive) or auto-graded (MCQ)
+
     marksAwarded: {
       type: Number,
       default: 0,
       min: 0,
+    },
+
+    answeredAt: {
+      type: Date,
+      default: Date.now,
     },
   },
   { _id: false }
@@ -36,46 +39,83 @@ const SubmissionSchema = new mongoose.Schema(
       ref: 'Exam',
       required: true,
     },
+
     studentId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Student',
       required: true,
     },
-    answers: [AnswerSchema],
-    seed: {
-      type: Number,
-      required: true,
+
+    // LIVE EXAM STATE
+    status: {
+      type: String,
+      enum: [
+        'in_progress',
+        'submitted',
+        'auto_submitted',
+      ],
+      default: 'in_progress',
     },
-    score: {
-      type: Number,
-      default: 0,
-    },
-    totalQuestions: {
-      type: Number,
-      default: 0,
-    },
-    percentage: {
-      type: Number,
-      default: 0,
-    },
+
     startedAt: {
       type: Date,
       default: Date.now,
     },
+
     submittedAt: {
       type: Date,
     },
-    isAutoSubmitted: {
-      type: Boolean,
-      default: false,
+
+    currentQuestionIndex: {
+      type: Number,
+      default: 0,
     },
+
+    // ANSWERS
+    answers: [AnswerSchema],
+
+    // PAPER SET
+    paperSet: {
+      type: Number,
+      required: true,
+    },
+
+    // RESULT
+    score: {
+      type: Number,
+      default: 0,
+    },
+
+    totalQuestions: {
+      type: Number,
+      default: 0,
+    },
+
+    percentage: {
+      type: Number,
+      default: 0,
+    },
+
+    // MONITORING
     ipAddress: {
       type: String,
       default: '',
     },
+
     userAgent: {
       type: String,
       default: '',
+    },
+
+    // SYNC METADATA
+    lastSyncedAt: {
+      type: Date,
+      default: Date.now,
+    },
+
+    reconnectCount: {
+      type: Number,
+      default: 0,
     },
   },
   {
@@ -83,7 +123,12 @@ const SubmissionSchema = new mongoose.Schema(
   }
 );
 
-// Ensure one submission per student per exam
-SubmissionSchema.index({ examId: 1, studentId: 1 }, { unique: true });
+SubmissionSchema.index(
+  { examId: 1, studentId: 1 },
+  { unique: true }
+);
 
-module.exports = mongoose.model('Submission', SubmissionSchema);
+module.exports = mongoose.model(
+  'Submission',
+  SubmissionSchema
+);

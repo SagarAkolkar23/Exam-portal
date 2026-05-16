@@ -1,11 +1,44 @@
-import { create } from 'zustand';
+import { create } from "zustand";
+import { persist } from "zustand/middleware";
 
-export const useAttemptStore = create((set, get) => ({
-  accessCode: '',
+export const useAttemptStore = create(
+  persist(
+    (set, get) => ({
+      accessCode: "",
+      examId: "",
 
-  setAccessCode: (code) => set({ accessCode: code }),
+      setAccessCode: (code) =>
+        set({
+          accessCode: code,
+        }),
 
-  getAccessCode: () => get().accessCode,
+      setExamId: (id) =>
+        set({
+          examId: id,
+        }),
 
-  clearAccessCode: () => set({ accessCode: '' }),
-}));
+      getAccessCode: () => get().accessCode,
+
+      getExamId: () => get().examId,
+
+      clearAccessCode: () =>
+        set({
+          accessCode: "",
+        }),
+
+      clearExamId: () =>
+        set({
+          examId: "",
+        }),
+
+      clearAttemptStore: () =>
+        set({
+          accessCode: "",
+          examId: "",
+        }),
+    }),
+    {
+      name: "attempt-storage",
+    },
+  ),
+);

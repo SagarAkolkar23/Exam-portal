@@ -1,5 +1,5 @@
-import { useCustomMutation, useCustomQuery } from './useQuery';
-
+import { useCustomMutation } from './useQuery';
+import { useAttemptStore } from '../store/attemptStore';
 
 export const joinExam = () => {
   return useCustomMutation({
@@ -11,3 +11,18 @@ export const joinExam = () => {
   });
 };
 
+export const startExam = () => {
+  return useCustomMutation({
+    mutationFn: () => {
+      const examId = useAttemptStore
+        .getState()
+        .examId;
+
+      return {
+        url: '/attempt/start',
+        method: 'POST',
+        data: { examId },
+      };
+    },
+  });
+};

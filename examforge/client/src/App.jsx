@@ -13,6 +13,8 @@ import ExamDetail from './pages/ExamDetail';
 import CreatePoll from './pages/CreatePoll';
 import StudentJoin from './pages/StudentJoin';
 import ExamAttempt from './pages/ExamAttempt';
+import ExamSession from './pages/ExamSession';
+import ExamResult from './pages/ExamResult';
 
 function App() {
   const { isAuthenticated, role } = useAuth();
@@ -99,6 +101,22 @@ function App() {
         element={
           <ProtectedRoute role="student">
             <ExamAttempt />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/exam/:examId/attempt"
+        element={
+          <ProtectedRoute role="student">
+            <ExamSession />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/exam/:examId/result"
+        element={
+          <ProtectedRoute role="student">
+            <ExamResult />
           </ProtectedRoute>
         }
       />

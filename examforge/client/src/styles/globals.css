@@ -58,6 +58,10 @@ a:hover { color: var(--color-primary-dark); }
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+@keyframes timerPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.75; transform: scale(1.04); }
+}
 
 /* ── Reusable Component Classes ───────────────────────────────────────────── */
 @layer components {

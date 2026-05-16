@@ -1,8 +1,10 @@
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
+import { useAttemptStore } from '../store/attemptStore';
 
 const formatDate = (iso) => {
   if (!iso) return '—';
+
   return new Date(iso).toLocaleString('en-IN', {
     weekday: 'short',
     day: '2-digit',
@@ -16,10 +18,13 @@ const formatDate = (iso) => {
 
 const formatDuration = (minutes) => {
   if (!minutes) return '—';
+
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
+
   if (h === 0) return `${m} min`;
   if (m === 0) return `${h} hr`;
+
   return `${h} hr ${m} min`;
 };
 
@@ -34,17 +39,25 @@ const DEFAULT_RULES = [
 export default function ExamAttempt() {
   const location = useLocation();
   const navigate = useNavigate();
+
   const [agreed, setAgreed] = useState(false);
 
   const examData = location.state?.examData;
   const exam = examData?.exam;
-  console.log(examData)
-
+  const setExamId = useAttemptStore((state) => state.setExamId);
   if (!exam) {
     return (
-      <div style={styles.errorWrap}>
-        <p style={styles.errorText}>No exam data found. Please go back and join again.</p>
-        <button style={styles.backBtn} onClick={() => navigate(-1)}>← Go Back</button>
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-zinc-50 px-4">
+        <p className="text-sm text-zinc-500 text-center">
+          No exam data found. Please go back and join again.
+        </p>
+
+        <button
+          onClick={() => navigate(-1)}
+          className="border border-zinc-300 px-4 py-2 text-sm font-medium hover:bg-zinc-100 transition"
+        >
+          ← Go Back
+        </button>
       </div>
     );
   }
@@ -55,110 +68,183 @@ export default function ExamAttempt() {
       : DEFAULT_RULES;
 
   const handleStart = () => {
-    navigate(`/exam/${exam._id}/attempt`, { state: { examData } });
+    setExamId(exam._id);
+    navigate(`/exam/${exam._id}/attempt`, {
+      state: { examData },
+    });
   };
 
   return (
-    <div style={styles.page}>
-
-      <div style={styles.container}>
+    <div className="min-h-screen bg-zinc-100 py-10 px-4">
+      <div className="max-w-4xl mx-auto bg-white border border-zinc-200 rounded-lg overflow-hidden shadow-sm">
 
         {/* Header */}
-        <div style={styles.header}>
-          <div style={styles.badge}>Exam</div>
-          <h1 style={styles.title}>{exam.title}</h1>
+        <div className="p-8">
+          <div className="inline-block text-[11px] font-semibold uppercase tracking-widest text-zinc-500 border border-zinc-300 px-2 py-1 rounded mb-4">
+            Exam
+          </div>
+
+          <h1 className="text-4xl font-bold text-zinc-900 tracking-tight">
+            {exam.title}
+          </h1>
+
           {exam.description && (
-            <p style={styles.description}>{exam.description}</p>
+            <p className="mt-3 text-sm leading-6 text-zinc-600 max-w-2xl">
+              {exam.description}
+            </p>
           )}
         </div>
 
-        <div style={styles.divider} />
+        <div className="border-t border-zinc-200" />
 
-        {/* Meta grid */}
-        <div style={styles.metaGrid}>
-          <MetaItem icon="⏱" label="Duration" value={formatDuration(exam.duration)} />
-          <MetaItem icon="🏆" label="Total Marks" value={exam.totalMarks ?? '—'} />
-          <MetaItem icon="📅" label="Starts" value={formatDate(exam.scheduledStart)} wide />
-          <MetaItem icon="🔚" label="Ends" value={formatDate(exam.scheduledEnd)} wide />
+        {/* Meta Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2">
+
+          <MetaItem
+            icon="⏱"
+            label="Duration"
+            value={formatDuration(exam.duration)}
+          />
+
+          <MetaItem
+            icon="🏆"
+            label="Total Marks"
+            value={exam.totalMarks ?? '—'}
+          />
+
+          <MetaItem
+            icon="📅"
+            label="Starts"
+            value={formatDate(exam.scheduledStart)}
+          />
+
+          <MetaItem
+            icon="🔚"
+            label="Ends"
+            value={formatDate(exam.scheduledEnd)}
+          />
         </div>
 
-        <div style={styles.divider} />
+        <div className="border-t border-zinc-200" />
 
-        {/* Behaviour flags */}
-        <div style={styles.section}>
-          <h2 style={styles.sectionTitle}>Exam Settings</h2>
-          <div style={styles.flagsRow}>
+        {/* Settings */}
+        <div className="p-8">
+          <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500 mb-5">
+            Exam Settings
+          </h2>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
             <Flag
               active={exam.shuffleOptions}
               label="Options shuffled"
-              hint={exam.shuffleOptions ? 'Answer options are randomised per attempt.' : 'Answer options appear in fixed order.'}
+              hint={
+                exam.shuffleOptions
+                  ? 'Answer options are randomised per attempt.'
+                  : 'Answer options appear in fixed order.'
+              }
             />
+
             <Flag
               active={exam.showResultAfterSubmit}
               label="Result shown after submission"
-              hint={exam.showResultAfterSubmit ? 'Your score will be visible immediately after you submit.' : 'Results will be released by the examiner later.'}
+              hint={
+                exam.showResultAfterSubmit
+                  ? 'Your score will be visible immediately after submission.'
+                  : 'Results will be released later by examiner.'
+              }
             />
           </div>
         </div>
 
-        <div style={styles.divider} />
+        <div className="border-t border-zinc-200" />
 
         {/* Rules */}
-        <div style={styles.section}>
-          <h2 style={styles.sectionTitle}>Rules & Instructions</h2>
-          <ol style={styles.ruleList}>
-            {rules.map((rule, i) => (
-              <li key={i} style={styles.ruleItem}>
-                <span style={styles.ruleNum}>{i + 1}</span>
-                <span style={styles.ruleText}>{rule}</span>
-              </li>
+        <div className="p-8">
+          <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500 mb-5">
+            Rules & Instructions
+          </h2>
+
+          <div className="space-y-1">
+            {rules.map((rule, index) => (
+              <div
+                key={index}
+                className="flex gap-4 py-4 border-b border-zinc-100 last:border-none"
+              >
+                <span className="text-xs font-bold text-zinc-400 pt-1">
+                  {index + 1}
+                </span>
+
+                <p className="text-sm text-zinc-700 leading-6">
+                  {rule}
+                </p>
+              </div>
             ))}
-          </ol>
+          </div>
         </div>
 
-        <div style={styles.divider} />
+        <div className="border-t border-zinc-200" />
 
-        {/* Agreement & CTA */}
-        <div style={styles.footer}>
-          <label style={styles.checkLabel}>
+        {/* Footer */}
+        <div className="p-8 flex flex-col gap-6">
+
+          <label className="flex items-start gap-3 cursor-pointer">
             <input
               type="checkbox"
               checked={agreed}
               onChange={(e) => setAgreed(e.target.checked)}
-              style={styles.checkbox}
+              className="mt-1 h-4 w-4 accent-black"
             />
-            <span>I have read all the instructions and agree to follow the exam rules.</span>
+
+            <span className="text-sm text-zinc-700 leading-6">
+              I have read all the instructions and agree to follow the exam
+              rules.
+            </span>
           </label>
 
-          <div style={styles.ctaRow}>
-            <button style={styles.backBtn} onClick={() => navigate(-1)}>
+          <div className="flex justify-end gap-3">
+
+            <button
+              onClick={() => navigate(-1)}
+              className="px-5 py-2.5 text-sm font-semibold border border-zinc-300 text-zinc-700 hover:bg-zinc-100 transition"
+            >
               ← Back
             </button>
+
             <button
-              style={{
-                ...styles.startBtn,
-                ...(agreed ? {} : styles.startBtnDisabled),
-              }}
               disabled={!agreed}
               onClick={handleStart}
+              className={`px-6 py-2.5 text-sm font-bold transition
+                ${
+                  agreed
+                    ? 'bg-black text-white hover:bg-zinc-800'
+                    : 'bg-zinc-300 text-zinc-500 cursor-not-allowed'
+                }
+              `}
             >
               Start Exam →
             </button>
+
           </div>
         </div>
-
       </div>
     </div>
   );
 }
 
-function MetaItem({ icon, label, value, wide }) {
+function MetaItem({ icon, label, value }) {
   return (
-    <div style={{ ...styles.metaItem, ...(wide ? styles.metaItemWide : {}) }}>
-      <span style={styles.metaIcon}>{icon}</span>
+    <div className="flex items-start gap-4 p-6 border-b md:border-r border-zinc-200">
+      <span className="text-xl">{icon}</span>
+
       <div>
-        <p style={styles.metaLabel}>{label}</p>
-        <p style={styles.metaValue}>{value}</p>
+        <p className="text-[11px] uppercase tracking-widest font-semibold text-zinc-400 mb-1">
+          {label}
+        </p>
+
+        <p className="text-sm font-semibold text-zinc-900">
+          {value}
+        </p>
       </div>
     </div>
   );
@@ -166,243 +252,22 @@ function MetaItem({ icon, label, value, wide }) {
 
 function Flag({ active, label, hint }) {
   return (
-    <div style={styles.flagCard}>
-      <span style={{ ...styles.flagDot, background: active ? '#16a34a' : '#9ca3af' }} />
+    <div className="flex gap-3 items-start border border-zinc-200 bg-zinc-50 p-4 rounded-md">
+      <div
+        className={`w-2 h-2 rounded-full mt-2 ${
+          active ? 'bg-green-600' : 'bg-zinc-400'
+        }`}
+      />
+
       <div>
-        <p style={styles.flagLabel}>{label}</p>
-        <p style={styles.flagHint}>{hint}</p>
+        <p className="text-sm font-semibold text-zinc-900">
+          {label}
+        </p>
+
+        <p className="text-xs text-zinc-500 mt-1 leading-5">
+          {hint}
+        </p>
       </div>
     </div>
   );
 }
-
-const styles = {
-  page: {
-    minHeight: '100vh',
-    background: '#f9f9f8',
-    padding: '2.5rem 1rem',
-    fontFamily: '"DM Mono", "IBM Plex Mono", "Courier New", monospace',
-    color: '#1a1a1a',
-  },
-  container: {
-    maxWidth: 680,
-    margin: '0 auto',
-    background: '#ffffff',
-    border: '1px solid #e4e4e0',
-    borderRadius: 4,
-  },
-  header: {
-    padding: '2rem 2rem 1.5rem',
-  },
-  badge: {
-    display: 'inline-block',
-    fontSize: 11,
-    fontWeight: 600,
-    letterSpacing: '0.1em',
-    textTransform: 'uppercase',
-    color: '#6b7280',
-    border: '1px solid #e4e4e0',
-    borderRadius: 2,
-    padding: '3px 8px',
-    marginBottom: 12,
-  },
-  title: {
-    fontSize: 26,
-    fontWeight: 700,
-    margin: '0 0 8px',
-    lineHeight: 1.2,
-    letterSpacing: '-0.02em',
-    color: '#111',
-    fontFamily: 'Georgia, "Times New Roman", serif',
-  },
-  description: {
-    fontSize: 14,
-    color: '#6b7280',
-    margin: 0,
-    lineHeight: 1.6,
-  },
-  divider: {
-    height: 1,
-    background: '#e4e4e0',
-    margin: '0 2rem',
-  },
-  metaGrid: {
-    display: 'grid',
-    gridTemplateColumns: '1fr 1fr',
-    gap: 0,
-    padding: '0.25rem 0',
-  },
-  metaItem: {
-    display: 'flex',
-    alignItems: 'flex-start',
-    gap: 12,
-    padding: '1.25rem 2rem',
-    borderRight: '1px solid #e4e4e0',
-    borderBottom: '1px solid #e4e4e0',
-  },
-  metaItemWide: {
-    borderRight: 'none',
-  },
-  metaIcon: {
-    fontSize: 18,
-    lineHeight: 1,
-    marginTop: 2,
-  },
-  metaLabel: {
-    fontSize: 11,
-    fontWeight: 600,
-    letterSpacing: '0.08em',
-    textTransform: 'uppercase',
-    color: '#9ca3af',
-    margin: '0 0 4px',
-  },
-  metaValue: {
-    fontSize: 14,
-    fontWeight: 600,
-    color: '#111',
-    margin: 0,
-  },
-  section: {
-    padding: '1.5rem 2rem',
-  },
-  sectionTitle: {
-    fontSize: 12,
-    fontWeight: 700,
-    letterSpacing: '0.1em',
-    textTransform: 'uppercase',
-    color: '#9ca3af',
-    margin: '0 0 1rem',
-  },
-  flagsRow: {
-    display: 'grid',
-    gridTemplateColumns: '1fr 1fr',
-    gap: 12,
-  },
-  flagCard: {
-    display: 'flex',
-    gap: 10,
-    alignItems: 'flex-start',
-    padding: '12px 14px',
-    background: '#f9f9f8',
-    border: '1px solid #e4e4e0',
-    borderRadius: 4,
-  },
-  flagDot: {
-    width: 8,
-    height: 8,
-    borderRadius: '50%',
-    marginTop: 5,
-    flexShrink: 0,
-  },
-  flagLabel: {
-    fontSize: 13,
-    fontWeight: 600,
-    color: '#1a1a1a',
-    margin: '0 0 3px',
-  },
-  flagHint: {
-    fontSize: 12,
-    color: '#6b7280',
-    margin: 0,
-    lineHeight: 1.5,
-  },
-  ruleList: {
-    margin: 0,
-    padding: 0,
-    listStyle: 'none',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 0,
-  },
-  ruleItem: {
-    display: 'flex',
-    gap: 14,
-    alignItems: 'flex-start',
-    padding: '12px 0',
-    borderBottom: '1px solid #f0f0ee',
-  },
-  ruleNum: {
-    fontSize: 11,
-    fontWeight: 700,
-    color: '#9ca3af',
-    width: 18,
-    flexShrink: 0,
-    paddingTop: 2,
-    letterSpacing: '0.05em',
-  },
-  ruleText: {
-    fontSize: 14,
-    color: '#374151',
-    lineHeight: 1.6,
-  },
-  footer: {
-    padding: '1.5rem 2rem',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 16,
-  },
-  checkLabel: {
-    display: 'flex',
-    gap: 10,
-    alignItems: 'flex-start',
-    fontSize: 13,
-    color: '#374151',
-    lineHeight: 1.5,
-    cursor: 'pointer',
-  },
-  checkbox: {
-    marginTop: 2,
-    width: 15,
-    height: 15,
-    flexShrink: 0,
-    accentColor: '#111',
-    cursor: 'pointer',
-  },
-  ctaRow: {
-    display: 'flex',
-    gap: 10,
-    justifyContent: 'flex-end',
-  },
-  backBtn: {
-    padding: '9px 18px',
-    fontSize: 13,
-    fontWeight: 600,
-    background: 'transparent',
-    color: '#6b7280',
-    border: '1px solid #d1d5db',
-    borderRadius: 3,
-    cursor: 'pointer',
-    fontFamily: 'inherit',
-  },
-  startBtn: {
-    padding: '9px 24px',
-    fontSize: 13,
-    fontWeight: 700,
-    background: '#111',
-    color: '#fff',
-    border: '1px solid #111',
-    borderRadius: 3,
-    cursor: 'pointer',
-    fontFamily: 'inherit',
-    letterSpacing: '0.02em',
-  },
-  startBtnDisabled: {
-    background: '#d1d5db',
-    borderColor: '#d1d5db',
-    color: '#9ca3af',
-    cursor: 'not-allowed',
-  },
-  errorWrap: {
-    minHeight: '100vh',
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 16,
-    fontFamily: 'monospace',
-  },
-  errorText: {
-    color: '#6b7280',
-    fontSize: 14,
-  },
-};
