@@ -15,6 +15,7 @@ import StudentJoin from './pages/StudentJoin';
 import ExamAttempt from './pages/ExamAttempt';
 import ExamSession from './pages/ExamSession';
 import ExamResult from './pages/ExamResult';
+import StudentDashboard from './pages/StudentDashboard';
 
 function App() {
   const { isAuthenticated, role } = useAuth();
@@ -92,7 +93,7 @@ function App() {
         path="/student/join"
         element={
           <ProtectedRoute role="student">
-            <StudentJoin />
+            <StudentDashboard />
           </ProtectedRoute>
         }
       />

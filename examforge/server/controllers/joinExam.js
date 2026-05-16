@@ -101,12 +101,14 @@ const startExam = async (req, res, next) => {
 
     const studentId = req.user.id;
 
+    // VALIDATION
     if (!examId) {
       return res.status(400).json({
         message: "Exam ID is required.",
       });
     }
 
+    // FIND EXAM
     const exam = await Exam.findById(examId);
 
     if (!exam) {
@@ -115,21 +117,39 @@ const startExam = async (req, res, next) => {
       });
     }
 
+    // UPDATE STATUS
     await autoUpdateStatus(exam);
 
     await exam.save();
 
+    // EXAM MUST BE LIVE
     if (exam.status !== "live") {
       return res.status(403).json({
         message: "Exam is not live.",
       });
     }
 
+    // VERIFY STUDENT ASSIGNED
+    const isAssigned = exam.assignedStudents.some(
+      (s) => s.toString() === studentId,
+    );
+
+    if (!isAssigned) {
+      return res.status(403).json({
+        message: "You are not assigned to this exam.",
+      });
+    }
+
+    // FETCH QUESTIONS
     let questions = await Question.find({
       examId,
-    })
-      .sort({ createdAt: 1 })
-      .select("question options marks type");
+    }).sort({ createdAt: 1 }).select(`
+        text
+        options
+        marks
+        type
+        correctIndex
+      `);
 
     if (!questions.length) {
       return res.status(404).json({
@@ -137,6 +157,7 @@ const startExam = async (req, res, next) => {
       });
     }
 
+    // FIND ATTENDANCE
     let attendance = await Attendance.findOne({
       examId,
       studentId,
@@ -146,61 +167,96 @@ const startExam = async (req, res, next) => {
     let questionOrder;
     let optionOrders;
 
+    // FIRST START
     if (!attendance) {
       paperSet = Math.floor(Math.random() * 8) + 1;
 
+      // QUESTION ORDER
       questionOrder = generateOrder(questions.length, paperSet);
 
       optionOrders = {};
 
+      // OPTION ORDERS
       questions.forEach((q, index) => {
-        optionOrders[q._id.toString()] = generateOrder(
-          q.options.length,
-          paperSet + index,
-        );
+        // ONLY MCQ
+        if (q.type === "mcq" && Array.isArray(q.options)) {
+          optionOrders[q._id.toString()] = generateOrder(
+            q.options.length,
+            paperSet + index,
+          );
+        }
       });
 
+      // CREATE ATTENDANCE
       attendance = await Attendance.create({
         examId,
         studentId,
+
         paperSet,
         questionOrder,
         optionOrders,
+
         deviceInfo: {
           userAgent: req.headers["user-agent"],
+
           ipAddress: req.ip,
         },
       });
-    } else {
+    }
+
+    // RECONNECT
+    else {
       attendance.lastSeenAt = new Date();
+
       attendance.reconnectCount += 1;
+
       await attendance.save();
+
       paperSet = attendance.paperSet;
+
       questionOrder = attendance.questionOrder;
+
       optionOrders = attendance.optionOrders;
     }
+
+    // APPLY QUESTION ORDER
     questions = questionOrder.map((index) => questions[index]);
+
+    // APPLY OPTION SHUFFLE
     questions = questions.map((q) => {
+      // DESCRIPTIVE
+      if (q.type === "descriptive") {
+        return q;
+      }
+
       const order = optionOrders[q._id.toString()];
+
       const shuffledOptions = order.map((index) => q.options[index]);
 
       return {
         ...q.toObject(),
+
         options: shuffledOptions,
       };
     });
 
+    // FIND SUBMISSION
     let submission = await Submission.findOne({
       examId,
       studentId,
     });
 
-    if (submission?.status === "submitted") {
+    // PREVENT RESTART
+    if (
+      submission?.status === "submitted" ||
+      submission?.status === "auto_submitted"
+    ) {
       return res.status(400).json({
         message: "Exam already submitted.",
       });
     }
 
+    // CREATE SUBMISSION
     if (!submission) {
       submission = await Submission.create({
         examId,
@@ -231,7 +287,7 @@ const startExam = async (req, res, next) => {
 
     const remainingTime = Math.max(durationInSeconds - elapsed, 0);
 
-    // AUTO SUBMIT IF EXPIRED
+    // AUTO SUBMIT
     if (remainingTime <= 0) {
       submission.status = "auto_submitted";
 
@@ -244,10 +300,13 @@ const startExam = async (req, res, next) => {
       });
     }
 
+    // RESPONSE
     return res.json({
       exam: {
         _id: exam._id,
+
         title: exam.title,
+
         duration: exam.duration,
       },
 
@@ -406,9 +465,9 @@ const finalSubmit = async (req, res, next) => {
       examId,
     }).select(
       `
-        question
+        text
         options
-        correctAnswer
+        correctIndex
         marks
         type
         explanation
@@ -459,7 +518,7 @@ const finalSubmit = async (req, res, next) => {
         unansweredQuestions.push({
           questionId: question._id,
 
-          question: question.question,
+          question: question.text,
         });
       }
 
@@ -474,7 +533,7 @@ const finalSubmit = async (req, res, next) => {
         const originalIndex = optionOrder[answer.selectedIndex];
 
         // CHECK ANSWER
-        if (originalIndex === question.correctAnswer) {
+        if (originalIndex === question.correctIndex) {
           isCorrect = true;
 
           marksAwarded = question.marks || 1;
@@ -484,11 +543,11 @@ const finalSubmit = async (req, res, next) => {
           correctQuestions.push({
             questionId: question._id,
 
-            question: question.question,
+            question: question.text,
 
             selectedOption: question.options[originalIndex],
 
-            correctOption: question.options[question.correctAnswer],
+            correctOption: question.options[question.correctIndex],
 
             marksAwarded,
           });
@@ -498,11 +557,11 @@ const finalSubmit = async (req, res, next) => {
           incorrectQuestions.push({
             questionId: question._id,
 
-            question: question.question,
+            question: question.text,
 
             selectedOption: question.options[originalIndex],
 
-            correctOption: question.options[question.correctAnswer],
+            correctOption: question.options[question.correctIndex],
 
             explanation: question.explanation || "",
 

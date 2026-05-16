@@ -13,6 +13,7 @@ const examRoutes = require('./routes/exams');
 const pollRoutes = require('./routes/polls');
 const proctorRoutes = require('./routes/proctor');
 const studentRoutes = require('./routes/students');
+const studentDashboardRoutes = require('./routes/student');
 const joinExamRoutes = require('./routes/joinExam.js');
 
 // ─── App Setup ────────────────────────────────────────────────────────────────
@@ -56,6 +57,7 @@ app.use('/api/exams', examRoutes);
 app.use('/api/polls', pollRoutes);
 app.use('/api/proctor', proctorRoutes);
 app.use('/api/students', studentRoutes);
+app.use('/api/student', studentDashboardRoutes);
 app.use('/api/attempt', joinExamRoutes);
 
 // Health check

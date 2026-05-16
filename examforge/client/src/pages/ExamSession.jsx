@@ -24,6 +24,7 @@ export default function ExamSession() {
     examStatus,
     setCurrentIndex,
   } = useExamSessionStore();
+  console.log(questions)
 
   // ── 2. Answer persistence + submit (single source of truth) ─────────────
   const { submitExam } = useAnswerPersistence(examId);

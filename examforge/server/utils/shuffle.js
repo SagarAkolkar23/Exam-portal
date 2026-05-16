@@ -30,6 +30,29 @@ function generateOrder(length, seed) {
   return seededShuffle(indices, seed);
 }
 
+function generateAccessCode() {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  let code = "";
+  for (let i = 0; i < 6; i++) {
+    code += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return code;
+}
+
+
+function unshuffleIndex(selectedShuffledIndex, shuffleMap) {
+  if (selectedShuffledIndex < 0 || selectedShuffledIndex > 3) return -1;
+  return shuffleMap[selectedShuffledIndex];
+}
+
+function getShuffleMap(submissionSeed, questionIndex) {
+  const seed = (submissionSeed + questionIndex) >>> 0;
+  return seededShuffle([0, 1, 2, 3], seed);
+}
+
 module.exports = {
   generateOrder,
+  generateAccessCode,
+  unshuffleIndex,
+  getShuffleMap,
 };

@@ -4,7 +4,7 @@ const Question = require('../models/Question');
 const Submission = require('../models/Submission');
 const ProctoringEvent = require('../models/ProctoringEvent');
 const { getShuffleMap, unshuffleIndex, generateAccessCode } = require('../utils/shuffle');
-const { autoUpdateStatus, stripCorrectIndex } = require('../helpers');
+const { autoUpdateStatus, stripCorrectIndex, validateQuestions } = require('../helpers');
 
 
 
