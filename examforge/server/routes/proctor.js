@@ -1,7 +1,7 @@
 const router = require('express').Router();
 const { body } = require('express-validator');
 const { requireTeacher, requireStudent } = require('../middleware/auth');
-const { recordEvent, getEvents, VALID_TYPES } = require('../controllers/proctorController');
+const { recordEvent, getEvents, getCheats, incrementCheats, VALID_TYPES } = require('../controllers/proctorController');
 
 router.post(
   '/event',
@@ -14,5 +14,8 @@ router.post(
 );
 
 router.get('/events/:examId/:studentId', requireTeacher, getEvents);
+
+router.get('/cheats/:examId/:studentId', getCheats);
+router.post('/cheats/:examId/:studentId', incrementCheats);
 
 module.exports = router;

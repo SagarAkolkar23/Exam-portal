@@ -4,6 +4,8 @@ import { useExamSession } from '../hooks/useExamSession';
 import { useHeartbeat } from '../hooks/useHeartbeat';
 import { useAnswerPersistence } from '../hooks/useAnswerPersistence';
 import { useExamSessionStore } from '../store/examSessionStore';
+import { useAuthStore } from '../store/authStore';
+import { useIncrementCheats } from '../api/queries';
 
 import ExamHeader from '../components/exam/ExamHeader';
 import QuestionCard from '../components/exam/QuestionCard';
@@ -15,6 +17,8 @@ import SubmitModal from '../components/exam/SubmitModal';
 export default function ExamSession() {
   const { examId } = useParams();
   const navigate   = useNavigate();
+  const user = useAuthStore((state) => state.user);
+  const { mutateAsync: incrementCheats } = useIncrementCheats();
 
   // ── 1. Load session (fetches from server, seeds store) ───────────────────
   const { loading, error } = useExamSession(examId);
@@ -94,6 +98,30 @@ export default function ExamSession() {
     window.addEventListener('beforeunload', handler);
     return () => window.removeEventListener('beforeunload', handler);
   }, [examId, questions.length, examStatus]);
+
+  // ── 6.5 Tab Switch / Minimize Tracking ────────────────────────────────────
+  useEffect(() => {
+    if (!examId || !user?._id || examStatus !== 'in_progress') return;
+
+    const handleVisibilityChange = async () => {
+      if (document.hidden) {
+        try {
+          const res = await incrementCheats({ examId, studentId: user._id });
+          if (res && res.cheats >= 3) {
+            alert('You have switched tabs too many times. Your exam will now be submitted automatically.');
+            handleFinalize(true);
+          } else if (res) {
+            alert(`Warning: Tab switching is not allowed. You have ${3 - res.cheats} warning(s) left.`);
+          }
+        } catch (error) {
+          console.error("Error incrementing cheat:", error);
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [examId, user?._id, examStatus, incrementCheats, handleFinalize]);
 
   // ── 7. Navigation ─────────────────────────────────────────────────────────
   const handleSelect = useCallback(

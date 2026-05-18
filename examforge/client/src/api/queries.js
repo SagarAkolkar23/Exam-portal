@@ -180,4 +180,22 @@ export const useSubmitExam = () => {
   });
 };
 
+export const useGetCheats = (examId, studentId, enabled = true) => {
+  return useCustomQuery({
+    queryKey: ['cheats', examId, studentId],
+    queryFn: () => ({
+      url: `/proctor/cheats/${examId}/${studentId}`,
+      method: 'GET',
+    }),
+    enabled: !!examId && !!studentId && enabled,
+  });
+};
 
+export const useIncrementCheats = () => {
+  return useCustomMutation({
+    mutationFn: ({ examId, studentId }) => ({
+      url: `/proctor/cheats/${examId}/${studentId}`,
+      method: 'POST',
+    }),
+  });
+};

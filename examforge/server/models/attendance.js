@@ -53,6 +53,11 @@ optionOrders: {
       type: Date,
       default: Date.now,
     },
+
+    cheat: {
+      type: Number,
+      default: 0,
+    },
   },
   {
     timestamps: true,

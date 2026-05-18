@@ -1,5 +1,6 @@
 const { validationResult } = require('express-validator');
 const ProctoringEvent = require('../models/ProctoringEvent');
+const Attendance = require('../models/attendance');
 
 const VALID_TYPES = [
   'tab_switch', 'fullscreen_exit', 'window_blur',
@@ -58,4 +59,38 @@ const getEvents = async (req, res, next) => {
   }
 };
 
-module.exports = { recordEvent, getEvents, VALID_TYPES };
+/**
+ * GET /api/proctor/cheats/:examId/:studentId
+ * Get the number of cheats for a student during an exam
+ */
+const getCheats = async (req, res, next) => {
+  try {
+    const { examId, studentId } = req.params;
+    const attendance = await Attendance.findOne({ examId, studentId });
+    if (!attendance) return res.status(404).json({ message: 'Attendance not found' });
+    res.json({ cheats: attendance.cheat || 0 });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * POST /api/proctor/cheats/:examId/:studentId
+ * Increase the number of cheats for a student during an exam
+ */
+const incrementCheats = async (req, res, next) => {
+  try {
+    const { examId, studentId } = req.params;
+    const attendance = await Attendance.findOneAndUpdate(
+      { examId, studentId },
+      { $inc: { cheat: 1 } },
+      { new: true }
+    );
+    if (!attendance) return res.status(404).json({ message: 'Attendance not found' });
+    res.json({ cheats: attendance.cheat });
+  } catch (err) {
+    next(err);
+  }
+};
+
+module.exports = { recordEvent, getEvents, getCheats, incrementCheats, VALID_TYPES };
