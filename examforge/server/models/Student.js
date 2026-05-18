@@ -35,6 +35,19 @@ const StudentSchema = new mongoose.Schema(
       min: [1, 'Year must be at least 1'],
       max: [6, 'Year cannot exceed 6'],
     },
+    semester: {
+      type: Number,
+      min: [1, 'Semester must be at least 1'],
+      max: [12, 'Semester cannot exceed 12'],
+    },
+    studentClass: {
+      type: String,
+      trim: true,
+    },
+    division: {
+      type: String,
+      trim: true,
+    },
     passwordHash: {
       type: String,
       required: true,

@@ -2,7 +2,7 @@
 
 const stripCorrectIndex = (questions) =>
   questions.map((q) => {
-    const base = { _id: q._id, text: q.text, type: q.type || 'mcq', marks: q.marks };
+    const base = { _id: q._id, text: q.text, type: q.type || 'mcq', marks: q.marks, description: q.description };
     if ((q.type || 'mcq') === 'mcq') base.options = q.options;
     return base;
   });
@@ -20,8 +20,10 @@ const  validateQuestions  = (questions) => {
         return `Question ${i + 1}: MCQ must have exactly 4 options.`;
       if (q.options.some((o) => !o || !o.trim()))
         return `Question ${i + 1}: all 4 options must be filled.`;
-      if (q.correctIndex === undefined || q.correctIndex === null || q.correctIndex < 0 || q.correctIndex > 3)
+      if (!q.correctOption || typeof q.correctOption !== 'string' || !q.correctOption.trim())
         return `Question ${i + 1}: a correct answer must be selected.`;
+      if (!q.options.includes(q.correctOption))
+        return `Question ${i + 1}: correct answer must match one of the options.`;
     }
   }
   return null;

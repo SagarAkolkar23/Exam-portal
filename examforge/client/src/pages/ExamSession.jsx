@@ -13,6 +13,7 @@ import NavigationBar from '../components/exam/NavigationBar';
 import ExamSidebar from '../components/exam/ExamSidebar';
 import MobilePalette from '../components/exam/MobilePalette';
 import SubmitModal from '../components/exam/SubmitModal';
+import WarningDialog from '../components/exam/alertBox';
 
 export default function ExamSession() {
   const { examId } = useParams();
@@ -36,9 +37,13 @@ export default function ExamSession() {
   const [showModal, setShowModal]     = useState(false);
   const [submitting, setSubmitting]   = useState(false);
   const [submitError, setSubmitError] = useState(null);
-
+const [warningOpen, setWarningOpen] = useState(false);
+const [warningsLeft, setWarningsLeft] = useState(3);
   // ── 3. Finalize — auto or manual, guarded against double-calls ──────────
   const isFinalizingRef = useRef(false);
+
+
+  useExamProtection();
 
   const handleFinalize = useCallback(
     async (isAuto = false) => {
@@ -106,12 +111,17 @@ export default function ExamSession() {
     const handleVisibilityChange = async () => {
       if (document.hidden) {
         try {
-          const res = await incrementCheats({ examId, studentId: user._id });
-          if (res && res.cheats >= 3) {
-            alert('You have switched tabs too many times. Your exam will now be submitted automatically.');
+          const res = await incrementCheats({
+            examId,
+            studentId: user._id,
+          });
+
+          if (res && res.cheats >= 4) {
             handleFinalize(true);
           } else if (res) {
-            alert(`Warning: Tab switching is not allowed. You have ${3 - res.cheats} warning(s) left.`);
+            setWarningsLeft(4 - res.cheats);
+
+            setWarningOpen(true);
           }
         } catch (error) {
           console.error("Error incrementing cheat:", error);
@@ -175,7 +185,7 @@ export default function ExamSession() {
       {(!isOnline || error) && (
         <div className="bg-amber-50 border-b border-amber-200 px-4 py-2 text-center text-xs text-amber-700 font-medium">
           {!isOnline
-            ? '⚠ Network lost — timer running from last sync. Answers are saved locally.'
+            ? "⚠ Network lost — timer running from last sync. Answers are saved locally."
             : error}
         </div>
       )}
@@ -184,7 +194,10 @@ export default function ExamSession() {
       <div className="flex-1 max-w-screen-xl mx-auto w-full px-4 py-6 flex gap-6">
         <main className="flex-1 min-w-0 flex flex-col gap-5">
           {submitError && (
-            <div role="alert" className="flex items-start gap-3 px-4 py-3 rounded-lg text-sm border bg-red-50 border-red-200 text-red-800">
+            <div
+              role="alert"
+              className="flex items-start gap-3 px-4 py-3 rounded-lg text-sm border bg-red-50 border-red-200 text-red-800"
+            >
               <span aria-hidden="true">✕</span>
               {submitError}
             </div>
@@ -194,12 +207,18 @@ export default function ExamSession() {
           <QuestionCard />
         </main>
 
-        <ExamSidebar onSubmit={() => setShowModal(true)} onSelect={handleSelect} />
+        <ExamSidebar
+          onSubmit={() => setShowModal(true)}
+          onSelect={handleSelect}
+        />
       </div>
 
       <NavigationBar onSubmit={() => setShowModal(true)} />
 
-      <MobilePalette onSelect={handleSelect} onSubmit={() => setShowModal(true)} />
+      <MobilePalette
+        onSelect={handleSelect}
+        onSubmit={() => setShowModal(true)}
+      />
 
       {showModal && (
         <SubmitModal
@@ -208,6 +227,113 @@ export default function ExamSession() {
           submitting={submitting}
         />
       )}
+
+      <WarningDialog
+        open={warningOpen}
+        warningsLeft={warningsLeft}
+        onClose={() => setWarningOpen(false)}
+      />
     </div>
   );
 }
+
+
+
+const useExamProtection = () => {
+
+  useEffect(() => {
+
+    const preventCopy = (e) => {
+      e.preventDefault();
+    };
+
+    const preventRightClick = (e) => {
+      e.preventDefault();
+    };
+
+    const preventKeyShortcuts = (e) => {
+
+      const blockedKeys = [
+        'c',
+        'v',
+        'x',
+        'a',
+        's',
+        'p',
+        'u'
+      ];
+
+      if (
+        (e.ctrlKey || e.metaKey) &&
+        blockedKeys.includes(e.key.toLowerCase())
+      ) {
+
+        e.preventDefault();
+
+      }
+
+      // F12
+      if (e.key === 'F12') {
+        e.preventDefault();
+      }
+
+    };
+
+    document.addEventListener(
+      'copy',
+      preventCopy
+    );
+
+    document.addEventListener(
+      'cut',
+      preventCopy
+    );
+
+    document.addEventListener(
+      'paste',
+      preventCopy
+    );
+
+    document.addEventListener(
+      'contextmenu',
+      preventRightClick
+    );
+
+    document.addEventListener(
+      'keydown',
+      preventKeyShortcuts
+    );
+
+    return () => {
+
+      document.removeEventListener(
+        'copy',
+        preventCopy
+      );
+
+      document.removeEventListener(
+        'cut',
+        preventCopy
+      );
+
+      document.removeEventListener(
+        'paste',
+        preventCopy
+      );
+
+      document.removeEventListener(
+        'contextmenu',
+        preventRightClick
+      );
+
+      document.removeEventListener(
+        'keydown',
+        preventKeyShortcuts
+      );
+
+    };
+
+  }, []);
+
+};
+

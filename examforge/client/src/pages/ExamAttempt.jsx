@@ -45,6 +45,9 @@ export default function ExamAttempt() {
   const examData = location.state?.examData;
   const exam = examData?.exam;
   const setExamId = useAttemptStore((state) => state.setExamId);
+
+
+  
   if (!exam) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-zinc-50 px-4">

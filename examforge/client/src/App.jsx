@@ -4,6 +4,8 @@ import { useAuth } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import TeacherLayout from './components/TeacherLayout';
 
+import TeacherExams from './pages/TeacherExams';
+
 // Pages
 import TeacherLogin from './pages/TeacherLogin';
 import StudentLogin from './pages/StudentLogin';
@@ -43,6 +45,16 @@ function App() {
           <ProtectedRoute role="teacher">
             <TeacherLayout>
               <TeacherDashboard />
+            </TeacherLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/teacher/exams"
+        element={
+          <ProtectedRoute role="teacher">
+            <TeacherLayout>
+              <TeacherExams />
             </TeacherLayout>
           </ProtectedRoute>
         }

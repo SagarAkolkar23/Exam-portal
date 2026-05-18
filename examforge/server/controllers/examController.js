@@ -3,8 +3,10 @@ const Exam = require('../models/Exam');
 const Question = require('../models/Question');
 const Submission = require('../models/Submission');
 const ProctoringEvent = require('../models/ProctoringEvent');
+const Student = require('../models/Student');
 const { getShuffleMap, unshuffleIndex, generateAccessCode } = require('../utils/shuffle');
 const { autoUpdateStatus, stripCorrectIndex, validateQuestions } = require('../helpers');
+const { sendExamNotifications } = require('../utils/mailer');
 
 
 
@@ -36,7 +38,6 @@ const createExam = async (req, res, next) => {
       scheduledStart: scheduledStart ? new Date(scheduledStart) : undefined,
       scheduledEnd: scheduledEnd ? new Date(scheduledEnd) : undefined,
       latestJoinTime: latestJoinTime ? new Date(latestJoinTime) : undefined,
-      questions: [],
       assignedStudents: assignedStudents || [],
       shuffleOptions: shuffleOptions !== undefined ? shuffleOptions : true,
       showResultAfterSubmit: showResultAfterSubmit !== undefined ? showResultAfterSubmit : false,
@@ -52,8 +53,6 @@ const createExam = async (req, res, next) => {
       const questionsToInsert = questions.map(q => ({ ...q, examId: exam._id }));
       const inserted = await Question.insertMany(questionsToInsert);
       savedQuestions = inserted;
-      exam.questions = inserted.map(q => q._id);
-      await exam.save();
     }
 
     const examObj = exam.toObject();
@@ -69,15 +68,17 @@ const listExams = async (req, res, next) => {
   try {
     const exams = await Exam.find({ createdBy: req.user.id })
       .populate('assignedStudents', 'name email rollNumber')
-      .populate('questions')
       .sort({ createdAt: -1 })
       .lean();
 
     const updated = await Promise.all(
       exams.map(async (exam) => {
-        const doc = await Exam.findById(exam._id).populate('questions');
+        const doc = await Exam.findById(exam._id);
+        const questions = await Question.find({ examId: doc._id });
         const updatedDoc = await autoUpdateStatus(doc);
-        return updatedDoc.toObject();
+        const obj = updatedDoc.toObject();
+        obj.questions = questions;
+        return obj;
       })
     );
 
@@ -96,15 +97,15 @@ const listExams = async (req, res, next) => {
 const getExam = async (req, res, next) => {
   try {
     let exam = await Exam.findOne({ _id: req.params.id, createdBy: req.user.id })
-      .populate('assignedStudents', 'name email rollNumber department year')
-      .populate('questions');
+      .populate('assignedStudents', 'name email rollNumber department year');
 
     if (!exam) return res.status(404).json({ message: 'Exam not found.' });
 
     exam = await autoUpdateStatus(exam);
+    const questions = await Question.find({ examId: exam._id });
 
     const examObj = exam.toObject();
-    examObj.questions = stripCorrectIndex(examObj.questions || []);
+    examObj.questions = stripCorrectIndex(questions || []);
 
     res.json(examObj);
   } catch (err) {
@@ -146,13 +147,9 @@ const updateExam = async (req, res, next) => {
         const questionsToInsert = questions.map(q => ({ ...q, examId: exam._id }));
         const inserted = await Question.insertMany(questionsToInsert);
         savedQuestions = inserted;
-        exam.questions = inserted.map(q => q._id);
-      } else {
-        exam.questions = [];
       }
     } else {
-      await exam.populate('questions');
-      savedQuestions = exam.questions;
+      savedQuestions = await Question.find({ examId: exam._id });
     }
 
     if (assignedStudents !== undefined) exam.assignedStudents = assignedStudents;
@@ -195,22 +192,59 @@ const deleteExam = async (req, res, next) => {
  */
 const publishExam = async (req, res, next) => {
   try {
-    const exam = await Exam.findOne({ _id: req.params.id, createdBy: req.user.id }).populate('questions');
+    const exam = await Exam.findOne({ _id: req.params.id, createdBy: req.user.id });
     if (!exam) return res.status(404).json({ message: 'Exam not found.' });
     if (exam.status !== 'draft') {
       return res.status(400).json({ message: 'Only draft exams can be published.' });
     }
-    if (exam.questions.length === 0) {
+    
+    const questions = await Question.find({ examId: exam._id });
+    if (questions.length === 0) {
       return res.status(400).json({ message: 'Cannot publish an exam with no questions.' });
     }
 
-    const err = validateQuestions(exam.questions.map((q) => q.toObject()));
+    const err = validateQuestions(questions.map((q) => q.toObject()));
     if (err) return res.status(400).json({ message: `Cannot publish: ${err}` });
 
     const now = new Date();
     exam.status = exam.scheduledStart && exam.scheduledStart > now ? 'scheduled' : 'live';
 
     await exam.save();
+
+    // ── Send email notifications to assigned students ─────────────────────
+    try {
+      const studentIds = exam.assignedStudents.map((s) =>
+        typeof s === 'object' ? s._id ?? s : s
+      );
+
+      const students = await Student.find(
+        { _id: { $in: studentIds } },
+        'name email'
+      ).lean();
+
+      const teacher = await require('../models/Teacher').findById(exam.createdBy, 'name').lean();
+
+      // Fire-and-forget — don't let email failures block the response
+      sendExamNotifications({
+        exam: {
+          title: exam.title,
+          description: exam.description,
+          duration: exam.duration,
+          totalMarks: exam.totalMarks,
+          scheduledStart: exam.scheduledStart,
+          scheduledEnd: exam.scheduledEnd,
+          rules: exam.rules,
+          accessCode: exam.accessCode,
+          status: exam.status,
+        },
+        students,
+        teacherName: teacher?.name ?? 'Your Teacher',
+      }).catch((err) => console.error('[publishExam] Email notification error:', err.message));
+    } catch (notifErr) {
+      console.error('[publishExam] Failed to prepare email notifications:', notifErr.message);
+    }
+    // ─────────────────────────────────────────────────────────────────────
+
     res.json({ message: `Exam is now ${exam.status}.`, status: exam.status });
   } catch (err) {
     next(err);
@@ -245,6 +279,7 @@ const getExamResults = async (req, res, next) => {
     const exam = await Exam.findOne({ _id: req.params.id, createdBy: req.user.id });
     if (!exam) return res.status(404).json({ message: 'Exam not found.' });
 
+    const questionsCount = await Question.countDocuments({ examId: exam._id });
     const submissions = await Submission.find({ examId: exam._id })
       .populate('studentId', 'name email rollNumber department year')
       .sort({ submittedAt: -1 })
@@ -275,7 +310,7 @@ const getExamResults = async (req, res, next) => {
         status: exam.status,
         totalMarks: exam.totalMarks,
         rules: exam.rules,
-        totalQuestions: exam.questions.length,
+        totalQuestions: questionsCount,
       },
       results,
     });
@@ -310,9 +345,7 @@ const checkEligibility = async (req, res, next) => {
     }
     if (exam.status === 'ended') return res.status(403).json({ message: 'This exam has ended.' });
 
-    if (exam.latestJoinTime && new Date() > exam.latestJoinTime) {
-      return res.status(403).json({ message: 'The joining window for this exam has closed.' });
-    }
+    
 
     const isAssigned = exam.assignedStudents.some((s) => s.toString() === studentId);
     if (!isAssigned) {
@@ -323,6 +356,8 @@ const checkEligibility = async (req, res, next) => {
     if (existing && existing.submittedAt) {
       return res.status(400).json({ message: 'You have already submitted this exam.' });
     }
+
+    const questionsCount = await Question.countDocuments({ examId: exam._id });
 
     res.json({
       exam: {
@@ -337,7 +372,7 @@ const checkEligibility = async (req, res, next) => {
         showResultAfterSubmit: exam.showResultAfterSubmit,
         totalMarks: exam.totalMarks,
         rules: exam.rules,
-        totalQuestions: exam.questions.length,
+        totalQuestions: questionsCount,
       }
     });
   } catch (err) {
@@ -366,15 +401,16 @@ const submitExam = async (req, res, next) => {
       return res.status(400).json({ message: 'This exam has already been submitted.' });
     }
 
-    const exam = await Exam.findById(submission.examId).populate('questions');
+    const exam = await Exam.findById(submission.examId);
     if (!exam) return res.status(404).json({ message: 'Exam not found.' });
+    const questions = await Question.find({ examId: exam._id });
 
     if (answers && Array.isArray(answers)) submission.answers = answers;
 
     let score = 0;
     let totalPossibleMarks = 0;
 
-    const gradedAnswers = exam.questions.map((q, idx) => {
+    const gradedAnswers = questions.map((q, idx) => {
       const type = q.type || 'mcq';
       const questionMarks = q.marks || 1;
       totalPossibleMarks += questionMarks;
@@ -387,7 +423,8 @@ const submitExam = async (req, res, next) => {
         const shuffleMap = exam.shuffleOptions ? getShuffleMap(submission.seed, idx) : [0, 1, 2, 3];
         const selectedShuffled = studentAnswer ? studentAnswer.selectedIndex : -1;
         const originalIndex = selectedShuffled >= 0 ? unshuffleIndex(selectedShuffled, shuffleMap) : -1;
-        const isCorrect = originalIndex === q.correctIndex;
+        const selectedOption = originalIndex >= 0 ? q.options[originalIndex] : null;
+        const isCorrect = selectedOption === q.correctOption;
         const awarded = isCorrect ? questionMarks : 0;
         if (isCorrect) score += awarded;
         if (studentAnswer) studentAnswer.marksAwarded = awarded;
@@ -400,9 +437,8 @@ const submitExam = async (req, res, next) => {
           marksAwarded: awarded,
           selectedShuffledIndex: selectedShuffled,
           originalSelectedIndex: originalIndex,
-          correctIndex: q.correctIndex,
-          correctOption: q.options[q.correctIndex],
-          studentOption: originalIndex >= 0 ? q.options[originalIndex] : null,
+          correctOption: q.correctOption,
+          studentOption: selectedOption,
           isCorrect,
         };
       } else {
@@ -424,7 +460,7 @@ const submitExam = async (req, res, next) => {
     });
 
     submission.score = score;
-    submission.totalQuestions = exam.questions.length;
+    submission.totalQuestions = questions.length;
     submission.percentage = totalPossibleMarks > 0 ? Math.round((score / totalPossibleMarks) * 100) : 0;
     submission.submittedAt = new Date();
     submission.isAutoSubmitted = isAutoSubmitted === true;

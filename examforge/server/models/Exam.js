@@ -28,12 +28,7 @@ const ExamSchema = new mongoose.Schema(
       ref: 'Teacher',
       required: true,
     },
-    questions: [
-      {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Question',
-      },
-    ],
+
     duration: {
       type: Number,
       required: [true, 'Duration is required'],

@@ -3,6 +3,15 @@ import React from 'react';
 function PollCard({ poll, onToggle, onDelete }) {
   const totalVotes = poll.options.reduce((sum, o) => sum + o.votes, 0);
 
+  const [isCopied, setIsCopied] = React.useState(false);
+
+  const handleCopyCode = (e) => {
+    e.stopPropagation();
+    navigator.clipboard.writeText(poll.accessCode);
+    setIsCopied(true);
+    setTimeout(() => setIsCopied(false), 2000);
+  };
+
   return (
     <div className="card p-5 flex flex-col gap-4 hover:shadow-md hover:border-slate-300 transition-all duration-200">
 
@@ -12,9 +21,27 @@ function PollCard({ poll, onToggle, onDelete }) {
           <span className={`badge ${poll.isOpen ? 'badge-open' : 'badge-closed'}`}>
             {poll.isOpen ? 'Active' : 'Closed'}
           </span>
-          <span className="font-mono text-xs font-semibold text-slate-500 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded uppercase tracking-wider">
-            {poll.accessCode}
-          </span>
+          <button 
+            onClick={handleCopyCode}
+            title="Click to copy access code"
+            className="font-mono text-xs font-semibold flex items-center gap-1 text-slate-500 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded uppercase tracking-wider hover:bg-slate-100 hover:text-ink transition-colors focus:outline-none focus:ring-2 focus:ring-primary/20"
+          >
+            {isCopied ? (
+              <span className="text-emerald-500 flex items-center gap-1">
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                Copied
+              </span>
+            ) : (
+              <>
+                {poll.accessCode}
+                <svg className="w-3 h-3 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+                </svg>
+              </>
+            )}
+          </button>
         </div>
         <span className="text-xs font-bold text-ink-dim bg-slate-100 px-2 py-1 rounded-md">{totalVotes} votes</span>
       </div>

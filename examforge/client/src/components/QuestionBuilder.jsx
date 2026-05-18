@@ -27,8 +27,18 @@ function QuestionBuilder({ index, question, onChange, onRemove, canRemove }) {
       {/* Header */}
       <div className="bg-slate-50 px-6 py-3 border-b border-line flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" />
+          <svg
+            className="w-4 h-4 text-slate-400"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M4 6h16M4 12h16M4 18h7"
+            />
           </svg>
           <span className="text-sm font-bold text-primary tracking-wide uppercase">
             Question {index + 1}
@@ -40,22 +50,22 @@ function QuestionBuilder({ index, question, onChange, onRemove, canRemove }) {
           <div className="flex items-center bg-slate-100 rounded-lg p-0.5 text-xs font-semibold">
             <button
               type="button"
-              onClick={() => switchType('mcq')}
+              onClick={() => switchType("mcq")}
               className={`px-3 py-1.5 rounded-md transition-all duration-150 ${
-                type === 'mcq'
-                  ? 'bg-white text-primary shadow-sm border border-primary/20'
-                  : 'text-slate-500 hover:text-ink'
+                type === "mcq"
+                  ? "bg-white text-primary shadow-sm border border-primary/20"
+                  : "text-slate-500 hover:text-ink"
               }`}
             >
               MCQ
             </button>
             <button
               type="button"
-              onClick={() => switchType('descriptive')}
+              onClick={() => switchType("descriptive")}
               className={`px-3 py-1.5 rounded-md transition-all duration-150 ${
-                type === 'descriptive'
-                  ? 'bg-white text-primary shadow-sm border border-primary/20'
-                  : 'text-slate-500 hover:text-ink'
+                type === "descriptive"
+                  ? "bg-white text-primary shadow-sm border border-primary/20"
+                  : "text-slate-500 hover:text-ink"
               }`}
             >
               Descriptive
@@ -70,15 +80,41 @@ function QuestionBuilder({ index, question, onChange, onRemove, canRemove }) {
               min={0}
               step={0.5}
               value={question.marks ?? 1}
-              onChange={(e) => update('marks', Number(e.target.value))}
+              onChange={(e) => update("marks", Number(e.target.value))}
+              className="w-16 text-center text-sm font-semibold text-ink border border-line rounded-md px-2 py-1 outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 bg-white"
+            />
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-slate-500 font-medium">CO:</span>
+            <input
+              type="text"
+              min={0}
+              step={0.5}
+              value={question.description || ""}
+              onChange={(e) => update("description", e.target.value)}
               className="w-16 text-center text-sm font-semibold text-ink border border-line rounded-md px-2 py-1 outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 bg-white"
             />
           </div>
 
           {canRemove && (
-            <button type="button" onClick={onRemove} className="text-slate-400 hover:text-danger transition-colors">
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            <button
+              type="button"
+              onClick={onRemove}
+              className="text-slate-400 hover:text-danger transition-colors"
+            >
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                />
               </svg>
             </button>
           )}
@@ -90,18 +126,18 @@ function QuestionBuilder({ index, question, onChange, onRemove, canRemove }) {
         <textarea
           className="w-full text-base font-semibold text-ink border-0 border-b border-transparent hover:border-slate-200 focus:border-primary focus:ring-0 px-0 py-2 resize-none outline-none transition-colors"
           placeholder={
-            type === 'mcq'
-              ? 'Type your multiple-choice question here...'
-              : 'Type your descriptive/open-ended question here...'
+            type === "mcq"
+              ? "Type your multiple-choice question here..."
+              : "Type your descriptive/open-ended question here..."
           }
-          value={question.text || ''}
-          onChange={(e) => update('text', e.target.value)}
+          value={question.text || ""}
+          onChange={(e) => update("text", e.target.value)}
           rows={2}
           required
         />
 
         {/* ── MCQ Options ── */}
-        {type === 'mcq' && (
+        {type === "mcq" && (
           <div className="flex flex-col gap-3">
             <p className="text-xs text-slate-400 font-medium uppercase tracking-wide">
               Click the radio to mark the correct answer
@@ -113,15 +149,19 @@ function QuestionBuilder({ index, question, onChange, onRemove, canRemove }) {
                   <label
                     key={optIdx}
                     className={`relative flex items-center gap-3 px-4 py-3 rounded-xl border-2 cursor-pointer transition-all duration-200
-                      ${isCorrect
-                        ? 'border-primary bg-indigo-50/50'
-                        : 'border-slate-200 hover:border-slate-300'}`}
+                      ${
+                        isCorrect
+                          ? "border-primary bg-indigo-50/50"
+                          : "border-slate-200 hover:border-slate-300"
+                      }`}
                   >
                     <div
                       className="flex items-center justify-center w-5 h-5 rounded-full border-2 flex-shrink-0"
-                      style={{ borderColor: isCorrect ? '#4f46e5' : '#cbd5e1' }}
+                      style={{ borderColor: isCorrect ? "#4f46e5" : "#cbd5e1" }}
                     >
-                      {isCorrect && <div className="w-2.5 h-2.5 rounded-full bg-primary" />}
+                      {isCorrect && (
+                        <div className="w-2.5 h-2.5 rounded-full bg-primary" />
+                      )}
                     </div>
 
                     <input
@@ -129,17 +169,21 @@ function QuestionBuilder({ index, question, onChange, onRemove, canRemove }) {
                       name={`correct-${index}`}
                       value={optIdx}
                       checked={isCorrect}
-                      onChange={() => update('correctIndex', optIdx)}
+                      onChange={() => update("correctIndex", optIdx)}
                       className="sr-only"
                     />
 
-                    <span className="text-xs font-bold text-slate-400 mr-1">{label}.</span>
+                    <span className="text-xs font-bold text-slate-400 mr-1">
+                      {label}.
+                    </span>
 
                     <input
                       type="text"
                       className="w-full bg-transparent text-sm font-medium text-ink outline-none placeholder:text-slate-400"
                       placeholder={`Option ${label}`}
-                      value={(question.options && question.options[optIdx]) || ''}
+                      value={
+                        (question.options && question.options[optIdx]) || ""
+                      }
                       onChange={(e) => updateOption(optIdx, e.target.value)}
                       required
                     />
@@ -157,13 +201,25 @@ function QuestionBuilder({ index, question, onChange, onRemove, canRemove }) {
         )}
 
         {/* ── Descriptive Info Banner ── */}
-        {type === 'descriptive' && (
+        {type === "descriptive" && (
           <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
-            <svg className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            <svg
+              className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
             </svg>
             <p className="text-xs text-amber-700 font-medium leading-relaxed">
-              Students will type a written answer. Descriptive responses require manual grading — marks will be awarded 0 automatically and can be updated later.
+              Students will type a written answer. Descriptive responses require
+              manual grading — marks will be awarded 0 automatically and can be
+              updated later.
             </p>
           </div>
         )}

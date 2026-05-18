@@ -36,25 +36,21 @@ const SubmissionSchema = new mongoose.Schema(
   {
     examId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Exam',
+      ref: "Exam",
       required: true,
     },
 
     studentId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Student',
+      ref: "Student",
       required: true,
     },
 
     // LIVE EXAM STATE
     status: {
       type: String,
-      enum: [
-        'in_progress',
-        'submitted',
-        'auto_submitted',
-      ],
-      default: 'in_progress',
+      enum: ["in_progress", "submitted", "auto_submitted"],
+      default: "in_progress",
     },
 
     startedAt: {
@@ -99,12 +95,12 @@ const SubmissionSchema = new mongoose.Schema(
     // MONITORING
     ipAddress: {
       type: String,
-      default: '',
+      default: "",
     },
 
     userAgent: {
       type: String,
-      default: '',
+      default: "",
     },
 
     // SYNC METADATA
@@ -117,10 +113,15 @@ const SubmissionSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    
+    cheat: {
+      type: Number,
+      default: 0,
+    },
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 SubmissionSchema.index(

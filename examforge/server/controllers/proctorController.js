@@ -1,6 +1,7 @@
 const { validationResult } = require('express-validator');
 const ProctoringEvent = require('../models/ProctoringEvent');
 const Attendance = require('../models/attendance');
+const Submission = require('../models/Submission');
 
 const VALID_TYPES = [
   'tab_switch', 'fullscreen_exit', 'window_blur',
@@ -66,9 +67,9 @@ const getEvents = async (req, res, next) => {
 const getCheats = async (req, res, next) => {
   try {
     const { examId, studentId } = req.params;
-    const attendance = await Attendance.findOne({ examId, studentId });
-    if (!attendance) return res.status(404).json({ message: 'Attendance not found' });
-    res.json({ cheats: attendance.cheat || 0 });
+    const submission = await Submission.findOne({ examId, studentId });
+    if (!submission) return res.status(404).json({ message: 'Submission not found' });
+    res.json({ cheats: submission.cheat || 0 });
   } catch (err) {
     next(err);
   }
@@ -81,13 +82,13 @@ const getCheats = async (req, res, next) => {
 const incrementCheats = async (req, res, next) => {
   try {
     const { examId, studentId } = req.params;
-    const attendance = await Attendance.findOneAndUpdate(
+    const submission = await Submission.findOneAndUpdate(
       { examId, studentId },
       { $inc: { cheat: 1 } },
       { new: true }
     );
-    if (!attendance) return res.status(404).json({ message: 'Attendance not found' });
-    res.json({ cheats: attendance.cheat });
+    if (!submission) return res.status(404).json({ message: 'Submission not found' });
+    res.json({ cheats: submission.cheat });
   } catch (err) {
     next(err);
   }

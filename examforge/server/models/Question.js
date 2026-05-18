@@ -22,6 +22,10 @@ const QuestionSchema = new mongoose.Schema({
     default: 1,
     min: [0, 'Marks cannot be negative'],
   },
+  description: {
+    type: String,
+    trim: true,
+  },
   // MCQ-only fields
   options: {
     type: [String],
@@ -37,10 +41,8 @@ const QuestionSchema = new mongoose.Schema({
       message: 'MCQ questions must have exactly 4 options',
     },
   },
-  correctIndex: {
-    type: Number,
-    min: 0,
-    max: 3,
+  correctOption: {
+    type: String,
     // Required only for MCQ; validated in route layer
   },
 });

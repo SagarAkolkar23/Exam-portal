@@ -11,6 +11,9 @@ const initialBasicState = {
   latestJoinTime: '',
   shuffleOptions: true,
   showResultAfterSubmit: false,
+  targetSemester: '',
+  targetClass: '',
+  targetDivision: '',
 };
 
 const initialExamState = {
@@ -29,6 +32,7 @@ export const useExamStore = create(
       setQuestions: (questions) => set((state) => ({ questions: typeof questions === 'function' ? questions(state.questions) : questions })),
       setAssignedStudents: (assignedStudents) => set((state) => ({ assignedStudents: typeof assignedStudents === 'function' ? assignedStudents(state.assignedStudents) : assignedStudents })),
       clearExamState: () => set(initialExamState),
+      allClear: () => set(initialExamState),
       setFullState: (fullState) => set({
         basic: fullState.basic || initialBasicState,
         rules: fullState.rules || initialExamState.rules,

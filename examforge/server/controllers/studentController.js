@@ -9,7 +9,7 @@ const Student = require('../models/Student');
 const listStudents = async (req, res, next) => {
   try {
     const students = await Student.find({})
-      .select('name email rollNumber department year createdAt')
+      .select('name email rollNumber department year semester studentClass division createdAt')
       .sort({ name: 1 })
       .lean();
 

@@ -49,11 +49,7 @@ const getExamDetails = async (req, res, next) => {
       });
     }
 
-    if (exam.latestJoinTime && new Date() > exam.latestJoinTime) {
-      return res.status(403).json({
-        message: "The joining window for this exam has closed.",
-      });
-    }
+   
 
     const isAssigned = exam.assignedStudents.some(
       (s) => s.toString() === studentId,
@@ -148,7 +144,7 @@ const startExam = async (req, res, next) => {
         options
         marks
         type
-        correctIndex
+        description
       `);
 
     if (!questions.length) {
@@ -467,9 +463,10 @@ const finalSubmit = async (req, res, next) => {
       `
         text
         options
-        correctIndex
+        correctOption
         marks
         type
+        description
         explanation
         `,
     );
@@ -529,11 +526,12 @@ const finalSubmit = async (req, res, next) => {
           question._id.toString(),
         );
 
-        // REVERSE MAP
+        // GET SELECTED OPTION TEXT
         const originalIndex = optionOrder[answer.selectedIndex];
+        const selectedOption = question.options[originalIndex];
 
         // CHECK ANSWER
-        if (originalIndex === question.correctIndex) {
+        if (selectedOption === question.correctOption) {
           isCorrect = true;
 
           marksAwarded = question.marks || 1;
@@ -545,9 +543,9 @@ const finalSubmit = async (req, res, next) => {
 
             question: question.text,
 
-            selectedOption: question.options[originalIndex],
+            selectedOption,
 
-            correctOption: question.options[question.correctIndex],
+            correctOption: question.correctOption,
 
             marksAwarded,
           });
@@ -559,9 +557,9 @@ const finalSubmit = async (req, res, next) => {
 
             question: question.text,
 
-            selectedOption: question.options[originalIndex],
+            selectedOption: selectedOption || "Not selected",
 
-            correctOption: question.options[question.correctIndex],
+            correctOption: question.correctOption,
 
             explanation: question.explanation || "",
 

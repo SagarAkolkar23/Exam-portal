@@ -1,34 +1,16 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 
-/**
- * examSessionStore
- *
- * Two-layer persistence strategy:
- *  1. `answers`, `markedIds`, `currentIndex` are persisted to localStorage
- *     via Zustand `persist` middleware, keyed by examId so sessions don't bleed.
- *  2. The key is dynamic (`ef_session_<examId>`) — updated by `initSession`.
- *
- * Timer fields (remainingTime, timerBaseline) are intentionally NOT persisted —
- * they always come fresh from the server on every startExam call.
- *
- * answer shape per question:
- *   MCQ:         { selectedIndex: number | null, answeredAt: ISO string }
- *   Descriptive: { textAnswer: string,           answeredAt: ISO string }
- */
 
-/** Storage key is scoped per exam to avoid cross-exam bleed */
 const storageKey = (examId) => `ef_session_${examId ?? 'default'}`;
 
 export const useExamSessionStore = create(
   persist(
     (set, get) => ({
-      // ── Exam identity ─────────────────────────────────────────────────────
       examId: null,
       examTitle: '',
       startedAt: null,
 
-      // ── Timer (never persisted — always from server) ──────────────────────
       remainingTime: 0,
       timerBaseline: null,
 
