@@ -21,7 +21,7 @@ const getDashboard = async (req, res, next) => {
       assignedStudents: studentId,
       status: { $in: ['live', 'scheduled', 'ended'] },
     })
-      .select('title description duration scheduledStart scheduledEnd status totalMarks showResultAfterSubmit')
+      .select('title description duration scheduledStart scheduledEnd latestJoinTime status totalMarks showResultAfterSubmit')
       .sort({ scheduledStart: 1 })
       .lean();
 

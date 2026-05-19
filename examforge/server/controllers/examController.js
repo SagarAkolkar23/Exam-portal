@@ -55,6 +55,38 @@ const createExam = async (req, res, next) => {
       savedQuestions = inserted;
     }
 
+    // ── Send notifications if exam is immediately live or scheduled ─────────
+    if (['live', 'scheduled'].includes(exam.status) && exam.assignedStudents.length > 0) {
+      try {
+        const students = await Student.find(
+          { _id: { $in: exam.assignedStudents } },
+          'name email'
+        ).lean();
+
+        const teacher = await require('../models/Teacher').findById(exam.createdBy, 'name').lean();
+
+        sendExamNotifications({
+          exam: {
+            title: exam.title,
+            description: exam.description,
+            duration: exam.duration,
+            totalMarks: exam.totalMarks,
+            scheduledStart: exam.scheduledStart,
+            scheduledEnd: exam.scheduledEnd,
+            latestJoinTime: exam.latestJoinTime,
+            rules: exam.rules,
+            accessCode: exam.accessCode,
+            status: exam.status,
+          },
+          students,
+          teacherName: teacher?.name ?? 'Your Teacher',
+        }).catch((err) => console.error('[createExam] Email notification error:', err.message));
+      } catch (notifErr) {
+        console.error('[createExam] Failed to prepare email notifications:', notifErr.message);
+      }
+    }
+    // ───────────────────────────────────────────────────────────────────────
+
     const examObj = exam.toObject();
     examObj.questions = savedQuestions;
     res.status(201).json(examObj);
@@ -233,6 +265,7 @@ const publishExam = async (req, res, next) => {
           totalMarks: exam.totalMarks,
           scheduledStart: exam.scheduledStart,
           scheduledEnd: exam.scheduledEnd,
+          latestJoinTime: exam.latestJoinTime,
           rules: exam.rules,
           accessCode: exam.accessCode,
           status: exam.status,

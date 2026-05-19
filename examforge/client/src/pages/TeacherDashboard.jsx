@@ -1,394 +1,311 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
+import api from "../api/axios";
 import { useGetExams } from "../api/queries";
 import { useAuth } from "../context/AuthContext";
-import { useAddTestStudent } from "../api/queries";
 import { getErrorMessage } from "../utils/helpers";
-
-function StatCard({
-  title,
-  value,
-  subtext,
-  subtextColor = "text-ink-muted",
-  icon,
-  accent,
-}) {
-  return (
-    <div
-      className={`card p-5 flex items-center gap-4 hover:shadow-md transition-shadow duration-200`}
-    >
-      <div
-        className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${accent}`}
-      >
-        {icon}
-      </div>
-      <div className="min-w-0">
-        <div className="text-xs font-bold text-ink-muted uppercase tracking-wider mb-0.5">
-          {title}
-        </div>
-        <div className="flex items-baseline gap-1.5">
-          <div className="text-2xl font-extrabold text-ink">{value}</div>
-          {subtext && (
-            <div className={`text-xs font-semibold ${subtextColor}`}>
-              {subtext}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
+import { useAnalyticsStore } from "../store/analyticsStore";
+import ScoreDistributionChart from "../components/analytics/ScoreDistributionChart";
+import CheatDistributionChart from "../components/analytics/CheatDistributionChart";
+import QuestionAnalysisChart from "../components/analytics/QuestionAnalysisChart";
+import Select from "../components/analytics/Select";
+import Pill from "../components/analytics/Pill";
+import Skeleton from "../components/analytics/Skeleton";
+import AddStudentModal from "../components/createExam.jsx/addStudent";
 
 function TeacherDashboard() {
   const { user } = useAuth();
   const { data: exams = [], error: examsError } = useGetExams();
-  const { mutateAsync: addTestStudent } = useAddTestStudent();
 
   const [error, setError] = useState("");
-
-  // Temporary Add Student Modal
   const [showStudentModal, setShowStudentModal] = useState(false);
-  const [batchDetails, setBatchDetails] = useState({
-    semester: 1,
-    studentClass: "",
-    division: "",
-    department: "",
-    year: 1,
+
+  const {
+    examId,
+    examTitle,
+    semester,
+    studentClass,
+    division,
+    availableSemesters,
+    availableClasses,
+    availableDivisions,
+    setExam,
+    setAvailableGroups,
+    setSemester,
+    setStudentClass,
+    setDivision,
+  } = useAnalyticsStore();
+
+  // 1. Fetch all exams overview
+  const { data: overviewData = [], isLoading: overviewLoading } = useQuery({
+    queryKey: ["teacher-analytics-overview"],
+    queryFn: () => api.get("/teacher/analytics/exams").then((r) => r.data),
+    staleTime: 60_000,
   });
-  const [studentsList, setStudentsList] = useState([
-    { name: "", email: "", rollNumber: "", password: "" },
-  ]);
+
+  // Sync groups when exam list or selected exam changes
+  useEffect(() => {
+    if (examId && overviewData.length > 0) {
+      const exam = overviewData.find((e) => e._id === examId);
+      if (exam) setAvailableGroups(exam.groups ?? []);
+    }
+  }, [overviewData, examId]);
+
+  const selectedExamGroups = useMemo(
+    () => overviewData.find((e) => e._id === examId)?.groups ?? [],
+    [overviewData, examId],
+  );
+
+  // 2. Score distribution
+  const scoreQuery = useQuery({
+    queryKey: ["score-distribution", examId, semester, studentClass, division],
+    enabled: !!examId,
+    queryFn: () => {
+      const params = new URLSearchParams();
+      if (semester) params.set("semester", semester);
+      if (studentClass) params.set("studentClass", studentClass);
+      if (division) params.set("division", division);
+      return api
+        .get(`/teacher/analytics/exams/${examId}/score-distribution?${params}`)
+        .then((r) => r.data);
+    },
+    staleTime: 30_000,
+  });
+
+  // 3. Cheat report
+  const cheatQuery = useQuery({
+    queryKey: ["cheat-report", examId],
+    enabled: !!examId,
+    queryFn: () =>
+      api
+        .get(`/teacher/analytics/exams/${examId}/cheat-report`)
+        .then((r) => r.data),
+    staleTime: 30_000,
+  });
+
+  // 4. Question analysis
+  const qAnalysisQuery = useQuery({
+    queryKey: ["question-analysis", examId],
+    enabled: !!examId,
+    queryFn: () =>
+      api
+        .get(`/teacher/analytics/exams/${examId}/question-analysis`)
+        .then((r) => r.data),
+    staleTime: 30_000,
+  });
+
+  const handleExamChange = (id) => {
+    if (!id) {
+      setExam(null, "");
+      return;
+    }
+    const exam = overviewData.find((e) => e._id === id);
+    setExam(id, exam?.title ?? "");
+    setAvailableGroups(exam?.groups ?? []);
+  };
+
+  const examOptions = overviewData
+    .filter((e) => e.status !== "draft")
+    .map((e) => ({ value: e._id, label: `${e.title} (${e.status})` }));
+
+  const scoreData = scoreQuery.data;
+  const cheatData = cheatQuery.data;
+  const qAnalysisData = qAnalysisQuery.data;
 
   useEffect(() => {
     if (examsError) setError(getErrorMessage(examsError));
   }, [examsError]);
 
-  const handleAddTestStudent = async (e) => {
-    e.preventDefault();
-    try {
-      // Validate
-      const validStudents = studentsList.filter(
-        (s) => s.name && s.email && s.rollNumber,
-      );
-      if (validStudents.length === 0) {
-        return alert("Please add at least one valid student.");
-      }
-      const payload = validStudents.map((s) => ({ ...batchDetails, ...s }));
-      await addTestStudent(payload);
-      alert("Students added successfully!");
-      setShowStudentModal(false);
-      setStudentsList([{ name: "", email: "", rollNumber: "", password: "" }]);
-    } catch (err) {
-      alert(getErrorMessage(err));
-    }
-  };
-
-  const liveCount = exams.filter((e) => e.status === "live").length;
-  const scheduledCount = exams.filter((e) => e.status === "scheduled").length;
-  const draftCount = exams.filter((e) => e.status === "draft").length;
-  const totalStudents = new Set(
-    exams.flatMap((e) =>
-      (e.assignedStudents || []).map((s) => (s._id || s).toString()),
-    ),
-  ).size;
-
   return (
     <div className="animate-[fadeIn_0.3s_ease] space-y-8">
-      {/* ── Page Header ── */}
-      <div className="flex items-center justify-between">
-        <div className="flex justify-end">
+      {/* ── Filter bar ─────────────────────────────────────────────────── */}
+      <div className="bg-white border border-slate-200/60 rounded-3xl p-5 shadow-sm">
+        <div className="flex flex-wrap items-end gap-4">
+          {/* Exam selector */}
+          <div className="flex flex-col gap-1.5 flex-1 min-w-[220px]">
+            <label
+              htmlFor="exam-select"
+              className="text-[10px] font-bold uppercase tracking-wider text-slate-400"
+            >
+              Exam
+            </label>
+            {overviewLoading ? (
+              <div className="h-10 bg-slate-100 rounded-xl animate-pulse" />
+            ) : (
+              <select
+                id="exam-select"
+                value={examId ?? ""}
+                onChange={(e) => handleExamChange(e.target.value || null)}
+                className="appearance-none bg-white border border-slate-200 text-slate-700 text-sm font-semibold rounded-xl px-3 py-2.5 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all disabled:opacity-40 disabled:cursor-not-allowed min-w-[160px] cursor-pointer"
+              >
+                <option value="">— Choose an exam —</option>
+                {examOptions.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+
+          <div className="h-10 w-px bg-slate-200 hidden sm:block self-end" />
+
+          <Select
+            id="semester-select"
+            label="Semester"
+            value={semester}
+            onChange={(val) => setSemester(val, selectedExamGroups)}
+            options={availableSemesters.map((s) => ({
+              value: s,
+              label: `Semester ${s}`,
+            }))}
+            placeholder="All Semesters"
+            disabled={!examId || availableSemesters.length === 0}
+          />
+
+          <Select
+            id="class-select"
+            label="Class"
+            value={studentClass}
+            onChange={(val) =>
+              setStudentClass(val, selectedExamGroups, semester)
+            }
+            options={availableClasses.map((c) => ({ value: c, label: c }))}
+            placeholder="All Classes"
+            disabled={!semester || availableClasses.length === 0}
+          />
+
+          <Select
+            id="division-select"
+            label="Division"
+            value={division}
+            onChange={setDivision}
+            options={availableDivisions.map((d) => ({
+              value: d,
+              label: `Division ${d}`,
+            }))}
+            placeholder="All Divisions"
+            disabled={!studentClass || availableDivisions.length === 0}
+          />
+
+          {/* Active filter chips */}
+          {(semester || studentClass || division) && (
+            <div className="flex items-center gap-2 flex-wrap self-end">
+              {semester && (
+                <span className="text-xs font-bold bg-indigo-50 text-indigo-600 px-3 py-1.5 rounded-full border border-indigo-100">
+                  Sem {semester}
+                </span>
+              )}
+              {studentClass && (
+                <span className="text-xs font-bold bg-indigo-50 text-indigo-600 px-3 py-1.5 rounded-full border border-indigo-100">
+                  {studentClass}
+                </span>
+              )}
+              {division && (
+                <span className="text-xs font-bold bg-indigo-50 text-indigo-600 px-3 py-1.5 rounded-full border border-indigo-100">
+                  Div {division}
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* ── Add Student button ── */}
           <button
-            className="btn btn-secondary btn-sm"
+            type="button"
             onClick={() => setShowStudentModal(true)}
+            className="ml-auto self-end btn btn-primary flex items-center gap-2 shrink-0"
           >
-            + Add Students
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 4v16m8-8H4"
+              />
+            </svg>
+            Add Student
           </button>
         </div>
       </div>
 
-      {error && <div className="alert alert-error">{error}</div>}
+      {/* ── No exam selected ───────────────────────────────────────────── */}
+      {!examId && (
+        <div className="flex flex-col items-center justify-center py-24 gap-4">
+          <div className="w-20 h-20 rounded-full bg-indigo-50 flex items-center justify-center text-4xl shadow-sm">
+            📊
+          </div>
+          <h2 className="text-xl font-bold text-slate-700">No exam selected</h2>
+          <p className="text-slate-400 text-sm font-medium max-w-sm text-center">
+            Pick an exam from the filter bar above to see score distributions,
+            integrity reports, and question-level analytics.
+          </p>
+        </div>
+      )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">
-        <StatCard
-          title="Live Exams"
-          value={liveCount}
-          accent="bg-emerald-100 text-emerald-600"
-          icon={
-            <svg
-              className="w-6 h-6"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M5.636 18.364a9 9 0 010-12.728m12.728 0a9 9 0 010 12.728M8.464 15.536a5 5 0 010-7.072m7.072 0a5 5 0 010 7.072M12 12h.01"
-              />
-            </svg>
-          }
-        />
-        <StatCard
-          title="Scheduled"
-          value={scheduledCount}
-          accent="bg-blue-100 text-blue-600"
-          icon={
-            <svg
-              className="w-6 h-6"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-              />
-            </svg>
-          }
-        />
-        <StatCard
-          title="Drafts"
-          value={draftCount}
-          accent="bg-amber-100 text-amber-600"
-          icon={
-            <svg
-              className="w-6 h-6"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-              />
-            </svg>
-          }
-        />
-        <StatCard
-          title="Total Students"
-          value={totalStudents}
-          accent="bg-purple-100 text-purple-600"
-          icon={
-            <svg
-              className="w-6 h-6"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
-              />
-            </svg>
-          }
-        />
-      </div>
+      {/* ── Summary pills ──────────────────────────────────────────────── */}
+      {examId && scoreData && (
+        <div className="flex flex-wrap gap-4">
+          <Pill
+            label="Assigned"
+            value={scoreData.totalEligible}
+            color="indigo"
+          />
+          <Pill
+            label="Attempted"
+            value={scoreData.totalAttempted}
+            color="emerald"
+          />
+          <Pill
+            label="Total Marks"
+            value={scoreData.exam?.totalMarks}
+            color="amber"
+          />
+          <Pill
+            label="Cheats Flagged"
+            value={cheatData?.report?.filter((r) => r.cheats > 0).length}
+            color="rose"
+          />
+        </div>
+      )}
 
-      {/* ── Temporary Add Student Modal ── */}
-      {showStudentModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-[fadeIn_0.2s_ease]">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl p-6 flex flex-col max-h-[90vh] animate-[slideUp_0.2s_ease]">
-            <h3 className="text-xl font-bold text-ink mb-4">
-              Add Test Students
-            </h3>
-            <form
-              onSubmit={handleAddTestStudent}
-              className="flex flex-col flex-1 overflow-hidden"
-            >
-              <div className="grid grid-cols-5 gap-4 mb-6 shrink-0">
-                <div>
-                  <label className="form-label text-slate-500">Semester</label>
-                  <input
-                    required
-                    type="number"
-                    min="1"
-                    className="form-input py-1.5"
-                    value={batchDetails.semester}
-                    onChange={(e) =>
-                      setBatchDetails({
-                        ...batchDetails,
-                        semester: e.target.value,
-                      })
-                    }
-                  />
-                </div>
-                <div>
-                  <label className="form-label text-slate-500">Class</label>
-                  <input
-                    required
-                    type="text"
-                    className="form-input py-1.5"
-                    placeholder="e.g. SY"
-                    value={batchDetails.studentClass}
-                    onChange={(e) =>
-                      setBatchDetails({
-                        ...batchDetails,
-                        studentClass: e.target.value,
-                      })
-                    }
-                  />
-                </div>
-                <div>
-                  <label className="form-label text-slate-500">Division</label>
-                  <input
-                    required
-                    type="text"
-                    className="form-input py-1.5"
-                    placeholder="e.g. A"
-                    value={batchDetails.division}
-                    onChange={(e) =>
-                      setBatchDetails({
-                        ...batchDetails,
-                        division: e.target.value,
-                      })
-                    }
-                  />
-                </div>
-                <div>
-                  <label className="form-label text-slate-500">
-                    Department
-                  </label>
-                  <input
-                    required
-                    type="text"
-                    className="form-input py-1.5"
-                    placeholder="e.g. CS"
-                    value={batchDetails.department}
-                    onChange={(e) =>
-                      setBatchDetails({
-                        ...batchDetails,
-                        department: e.target.value,
-                      })
-                    }
-                  />
-                </div>
-                <div>
-                  <label className="form-label text-slate-500">Year</label>
-                  <input
-                    required
-                    type="number"
-                    min="1"
-                    className="form-input py-1.5"
-                    value={batchDetails.year}
-                    onChange={(e) =>
-                      setBatchDetails({ ...batchDetails, year: e.target.value })
-                    }
-                  />
-                </div>
-              </div>
+      {/* ── Charts ─────────────────────────────────────────────────────── */}
+      {examId && (
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          {scoreQuery.isLoading ? (
+            <Skeleton />
+          ) : (
+            <ScoreDistributionChart
+              data={scoreData?.distribution ?? []}
+              totalMarks={scoreData?.exam?.totalMarks ?? 100}
+            />
+          )}
 
-              <div className="flex-1 overflow-y-auto min-h-[200px] border border-slate-200 rounded-lg p-2 bg-slate-50">
-                {studentsList.map((student, idx) => (
-                  <div key={idx} className="flex gap-2 items-center mb-2">
-                    <input
-                      required
-                      type="text"
-                      className="form-input py-1.5 text-sm w-1/4"
-                      placeholder="Name"
-                      value={student.name}
-                      onChange={(e) => {
-                        const updated = [...studentsList];
-                        updated[idx].name = e.target.value;
-                        setStudentsList(updated);
-                      }}
-                    />
-                    <input
-                      required
-                      type="email"
-                      className="form-input py-1.5 text-sm w-1/4"
-                      placeholder="Email"
-                      value={student.email}
-                      onChange={(e) => {
-                        const updated = [...studentsList];
-                        updated[idx].email = e.target.value;
-                        setStudentsList(updated);
-                      }}
-                    />
-                    <input
-                      required
-                      type="text"
-                      className="form-input py-1.5 text-sm w-1/4"
-                      placeholder="Roll No"
-                      value={student.rollNumber}
-                      onChange={(e) => {
-                        const updated = [...studentsList];
-                        updated[idx].rollNumber = e.target.value;
-                        setStudentsList(updated);
-                      }}
-                    />
-                    <input
-                      type="text"
-                      className="form-input py-1.5 text-sm w-1/4"
-                      placeholder="Password (opt)"
-                      value={student.password}
-                      onChange={(e) => {
-                        const updated = [...studentsList];
-                        updated[idx].password = e.target.value;
-                        setStudentsList(updated);
-                      }}
-                    />
-                    {studentsList.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setStudentsList(
-                            studentsList.filter((_, i) => i !== idx),
-                          )
-                        }
-                        className="text-danger hover:bg-red-50 p-1.5 rounded-md"
-                      >
-                        <svg
-                          className="w-5 h-5"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M6 18L18 6M6 6l12 12"
-                          />
-                        </svg>
-                      </button>
-                    )}
-                  </div>
-                ))}
-                <button
-                  type="button"
-                  onClick={() =>
-                    setStudentsList([
-                      ...studentsList,
-                      { name: "", email: "", rollNumber: "", password: "" },
-                    ])
-                  }
-                  className="text-sm font-semibold text-primary hover:text-primary-focus mt-2 px-2"
-                >
-                  + Add Row
-                </button>
-              </div>
+          {cheatQuery.isLoading ? (
+            <Skeleton />
+          ) : (
+            <CheatDistributionChart report={cheatData?.report ?? []} />
+          )}
 
-              <div className="flex gap-3 justify-end mt-6 shrink-0">
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  onClick={() => setShowStudentModal(false)}
-                >
-                  Cancel
-                </button>
-                <button type="submit" className="btn btn-primary">
-                  Save Students
-                </button>
-              </div>
-            </form>
+          <div className="xl:col-span-2">
+            {qAnalysisQuery.isLoading ? (
+              <Skeleton />
+            ) : (
+              <QuestionAnalysisChart
+                questions={qAnalysisData?.questions ?? []}
+              />
+            )}
           </div>
         </div>
+      )}
+
+      {/* ── Add Student Modal ──────────────────────────────────────────── */}
+      {showStudentModal && (
+        <AddStudentModal onClose={() => setShowStudentModal(false)} />
       )}
     </div>
   );

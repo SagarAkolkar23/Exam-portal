@@ -81,7 +81,7 @@ function buildExamEmail({ student, exam, teacherName }) {
           <!-- Status badge row -->
           <tr>
             <td style="padding:28px 40px 0;">
-              <span style="display:inline-block;padding:6px 16px;border-radius:100px;font-size:13px;font-weight:700;background:${exam.status === 'live' ? '#fef2f2' : '#eff6ff'};color:${exam.status === 'live' ? '#dc2626' : '#2563eb'};border:1px solid ${exam.status === 'live' ? '#fecaca' : '#bfdbfe'};">${statusLabel}</span>
+              <span style="display:inline-block;padding:6px 16px;border-radius:100px;font-size:13px;font-weight:700;background:${exam.status === "live" ? "#fef2f2" : "#eff6ff"};color:${exam.status === "live" ? "#dc2626" : "#2563eb"};border:1px solid ${exam.status === "live" ? "#fecaca" : "#bfdbfe"};">${statusLabel}</span>
             </td>
           </tr>
 
@@ -89,7 +89,7 @@ function buildExamEmail({ student, exam, teacherName }) {
           <tr>
             <td style="padding:20px 40px 0;">
               <h2 style="font-size:22px;font-weight:800;color:#0f172a;margin:0 0 8px;">${exam.title}</h2>
-              ${exam.description ? `<p style="font-size:15px;color:#64748b;margin:0;line-height:1.6;">${exam.description}</p>` : ''}
+              ${exam.description ? `<p style="font-size:15px;color:#64748b;margin:0;line-height:1.6;">${exam.description}</p>` : ""}
             </td>
           </tr>
 
@@ -104,7 +104,7 @@ function buildExamEmail({ student, exam, teacherName }) {
                   </td>
                   <td style="padding:14px 20px;border-bottom:1px solid #e2e8f0;border-left:1px solid #e2e8f0;">
                     <p style="margin:0;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.08em;">Total Marks</p>
-                    <p style="margin:4px 0 0;font-size:15px;font-weight:600;color:#1e293b;">🏆 ${exam.totalMarks || '—'}</p>
+                    <p style="margin:4px 0 0;font-size:15px;font-weight:600;color:#1e293b;">🏆 ${exam.totalMarks || "—"}</p>
                   </td>
                 </tr>
                 <tr style="background:#ffffff;">
@@ -113,14 +113,33 @@ function buildExamEmail({ student, exam, teacherName }) {
                     <p style="margin:4px 0 0;font-size:15px;font-weight:600;color:#1e293b;">📅 ${startInfo}</p>
                   </td>
                 </tr>
-                ${exam.accessCode ? `
+                ${
+                  exam.status === "scheduled" && exam.latestJoinTime
+                    ? `
+                <tr style="background:#fffbeb;">
+                  <td colspan="2" style="padding:14px 20px;border-top:1px solid #fde68a;">
+                    <p style="margin:0;font-size:11px;font-weight:700;color:#d97706;text-transform:uppercase;letter-spacing:0.08em;">⚠ Enroll By (Last Join Time)</p>
+                    <p style="margin:4px 0 0;font-size:15px;font-weight:700;color:#b45309;">${fmtDate(exam.latestJoinTime)}</p>
+                    <p style="margin:4px 0 0;font-size:12px;color:#d97706;">You must join the exam before this deadline.</p>
+                  </td>
+                </tr>`
+                    : ""
+                }
+                ${
+                  exam.accessCode
+                    ? `
                 <tr style="background:#f8fafc;">
                   <td colspan="2" style="padding:14px 20px;border-top:1px solid #e2e8f0;">
                     <p style="margin:0;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.08em;">Access Code</p>
-                    <p style="margin:8px 0 0;font-size:28px;font-weight:900;letter-spacing:0.25em;color:#4f46e5;font-family:monospace;">${exam.accessCode}</p>
-                    <p style="margin:4px 0 0;font-size:12px;color:#94a3b8;">Use this code to join the exam on ExamForge.</p>
+                    <div style="margin:8px 0 0;">
+                      <span style="font-size:28px;font-weight:900;letter-spacing:0.25em;color:#4f46e5;font-family:monospace;vertical-align:middle;display:inline-block;padding-right:12px;">${exam.accessCode}</span>
+                      <a href="#" onclick="navigator.clipboard.writeText('${exam.accessCode}'); alert('Code copied!'); return false;" style="display:inline-block;vertical-align:middle;background:#e0e7ff;color:#4f46e5;padding:6px 12px;border-radius:6px;font-size:12px;font-weight:700;text-decoration:none;border:1px solid #c7d2fe;" title="Copy to clipboard">📋 Copy</a>
+                    </div>
+                    <p style="margin:8px 0 0;font-size:12px;color:#94a3b8;">Use this code to join the exam on ExamForge.</p>
                   </td>
-                </tr>` : ''}
+                </tr>`
+                    : ""
+                }
               </table>
             </td>
           </tr>
@@ -137,14 +156,14 @@ function buildExamEmail({ student, exam, teacherName }) {
           <tr>
             <td style="padding:32px 40px;">
               <p style="margin:0 0 16px;font-size:14px;color:#64748b;">Log in to your ExamForge account to view the full exam details and prepare accordingly.</p>
-              <a href="${process.env.CLIENT_URL || 'http://localhost:5173'}" style="display:inline-block;background:linear-gradient(135deg,#4f46e5,#7c3aed);color:#ffffff;text-decoration:none;padding:14px 28px;border-radius:12px;font-size:15px;font-weight:700;letter-spacing:-0.2px;">Open ExamForge →</a>
+              <a href="${process.env.CLIENT_URL || "http://localhost:5173/student/login"}" style="display:inline-block;background:linear-gradient(135deg,#4f46e5,#7c3aed);color:#ffffff;text-decoration:none;padding:14px 28px;border-radius:12px;font-size:15px;font-weight:700;letter-spacing:-0.2px;">Open ExamForge →</a>
             </td>
           </tr>
 
           <!-- Footer -->
           <tr>
             <td style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:20px 40px;text-align:center;">
-              <p style="margin:0;font-size:12px;color:#94a3b8;">This email was sent by <strong style="color:#64748b;">ExamForge</strong> on behalf of <strong style="color:#64748b;">${teacherName || 'your teacher'}</strong>. Please do not reply to this email.</p>
+              <p style="margin:0;font-size:12px;color:#94a3b8;">This email was sent by <strong style="color:#64748b;">ExamForge</strong> on behalf of <strong style="color:#64748b;">${teacherName || "your teacher"}</strong>. Please do not reply to this email.</p>
             </td>
           </tr>
 
@@ -166,6 +185,7 @@ Status: ${statusLabel}
 Duration: ${fmtDuration(exam.duration)}
 Total Marks: ${exam.totalMarks || '—'}
 ${exam.status === 'live' ? 'The exam is LIVE — join now!' : `Starts at: ${fmtDate(exam.scheduledStart)}`}
+${exam.status === 'scheduled' && exam.latestJoinTime ? `Enroll By (Last Join Time): ${fmtDate(exam.latestJoinTime)}` : ''}
 ${exam.accessCode ? `Access Code: ${exam.accessCode}` : ''}
 
 Log in at ${process.env.CLIENT_URL || 'http://localhost:5173'} to view full details.
@@ -176,14 +196,7 @@ Log in at ${process.env.CLIENT_URL || 'http://localhost:5173'} to view full deta
   return { html, text };
 }
 
-// ── Public API ───────────────────────────────────────────────────────────────
 
-/**
- * Send exam-assignment notification emails to a list of students.
- *
- * @param {{ exam: object, students: Array<{name:string,email:string}>, teacherName: string }} opts
- * @returns {Promise<void>}
- */
 async function sendExamNotifications({ exam, students, teacherName }) {
   if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
     console.warn('[mailer] SMTP_USER / SMTP_PASS not set — skipping email notifications.');

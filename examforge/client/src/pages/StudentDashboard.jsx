@@ -107,6 +107,17 @@ function ExamCard({ exam, onJoin }) {
               <MetaBadge icon={Icons.Calendar} label={isEnded ? 'Was Scheduled' : 'Starts At'} value={fmtDate(exam.scheduledStart)} />
             </div>
           )}
+          {exam.status === 'scheduled' && exam.latestJoinTime && (
+            <div className="col-span-2">
+              <div className="flex flex-col gap-1 p-3 rounded-2xl bg-amber-50/70 border border-amber-200/60 backdrop-blur-sm">
+                <div className="flex items-center gap-1.5 text-amber-500">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  <span className="text-[10px] font-bold uppercase tracking-wider">Enroll By</span>
+                </div>
+                <span className="text-sm font-semibold text-amber-700">{fmtDate(exam.latestJoinTime)}</span>
+              </div>
+            </div>
+          )}
         </div>
 
         {isLive ? (

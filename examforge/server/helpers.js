@@ -30,6 +30,8 @@ const  validateQuestions  = (questions) => {
 };
 
 
+const { sendExamNotifications } = require('./utils/mailer');
+
 const autoUpdateStatus = async (exam) => {
   const now = new Date();
   let newStatus = exam.status;
@@ -43,8 +45,25 @@ const autoUpdateStatus = async (exam) => {
     newStatus = 'ended';
 
   if (newStatus !== exam.status) {
+    const oldStatus = exam.status;
     exam.status = newStatus;
     await exam.save();
+
+    if (oldStatus === 'scheduled' && newStatus === 'live') {
+      try {
+        await exam.populate([
+          { path: 'assignedStudents', select: 'name email' },
+          { path: 'createdBy', select: 'name' }
+        ]);
+        await sendExamNotifications({
+          exam,
+          students: exam.assignedStudents,
+          teacherName: exam.createdBy?.name || 'Your Teacher'
+        });
+      } catch (err) {
+        console.error('[autoUpdateStatus] Failed to send live notifications:', err);
+      }
+    }
   }
   return exam;
 };

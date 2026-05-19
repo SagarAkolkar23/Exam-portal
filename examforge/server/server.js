@@ -8,13 +8,14 @@ const connectDB = require('./config/db');
 const errorHandler = require('./middleware/errorHandler');
 
 // Routes
-const authRoutes = require('./routes/auth');
-const examRoutes = require('./routes/exams');
-const pollRoutes = require('./routes/polls');
-const proctorRoutes = require('./routes/proctor');
-const studentRoutes = require('./routes/students');
+const authRoutes             = require('./routes/auth');
+const examRoutes             = require('./routes/exams');
+const pollRoutes             = require('./routes/polls');
+const proctorRoutes          = require('./routes/proctor');
+const studentRoutes          = require('./routes/students');
 const studentDashboardRoutes = require('./routes/student');
-const joinExamRoutes = require('./routes/joinExam.js');
+const joinExamRoutes         = require('./routes/joinExam.js');
+const teacherRoutes          = require('./routes/teacher');
 
 // ─── App Setup ────────────────────────────────────────────────────────────────
 
@@ -52,13 +53,14 @@ app.use(express.urlencoded({ extended: true }));
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
 
-app.use('/api/auth', authLimiter, authRoutes);
-app.use('/api/exams', examRoutes);
-app.use('/api/polls', pollRoutes);
+app.use('/api/auth',    authLimiter, authRoutes);
+app.use('/api/exams',   examRoutes);
+app.use('/api/polls',   pollRoutes);
 app.use('/api/proctor', proctorRoutes);
 app.use('/api/students', studentRoutes);
-app.use('/api/student', studentDashboardRoutes);
-app.use('/api/attempt', joinExamRoutes);
+app.use('/api/student',  studentDashboardRoutes);
+app.use('/api/attempt',  joinExamRoutes);
+app.use('/api/teacher',  teacherRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
