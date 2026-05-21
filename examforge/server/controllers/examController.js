@@ -454,13 +454,49 @@ const submitExam = async (req, res, next) => {
 
       if (type === 'mcq') {
         const shuffleMap = exam.shuffleOptions ? getShuffleMap(submission.seed, idx) : [0, 1, 2, 3];
-        const selectedShuffled = studentAnswer ? studentAnswer.selectedIndex : -1;
-        const originalIndex = selectedShuffled >= 0 ? unshuffleIndex(selectedShuffled, shuffleMap) : -1;
-        const selectedOption = originalIndex >= 0 ? q.options[originalIndex] : null;
-        const isCorrect = selectedOption === q.correctOption;
+        
+        let isCorrect = false;
+        let selectedOptions = [];
+        let correctOptionsText = "";
+        let studentOptionText = "";
+        let originalIndices = [];
+        let selectedShuffledIndices = [];
+
+        if (q.correctOptions && q.correctOptions.length > 0) {
+          selectedShuffledIndices = studentAnswer && Array.isArray(studentAnswer.selectedIndices)
+            ? studentAnswer.selectedIndices
+            : (studentAnswer && studentAnswer.selectedIndex !== -1 && studentAnswer.selectedIndex !== undefined ? [studentAnswer.selectedIndex] : []);
+          
+          originalIndices = selectedShuffledIndices.map(shIdx => shIdx >= 0 ? unshuffleIndex(shIdx, shuffleMap) : -1).filter(idx => idx >= 0);
+          selectedOptions = originalIndices.map(origIdx => q.options[origIdx]).filter(Boolean);
+
+          if (selectedOptions.length === q.correctOptions.length) {
+            isCorrect = q.correctOptions.every(opt => selectedOptions.includes(opt)) &&
+                        selectedOptions.every(opt => q.correctOptions.includes(opt));
+          }
+          correctOptionsText = q.correctOptions.join(", ");
+          studentOptionText = selectedOptions.join(", ") || "Not answered";
+        } else {
+          const selectedShuffled = studentAnswer ? studentAnswer.selectedIndex : -1;
+          const originalIndex = selectedShuffled >= 0 ? unshuffleIndex(selectedShuffled, shuffleMap) : -1;
+          const selectedOption = originalIndex >= 0 ? q.options[originalIndex] : null;
+          isCorrect = selectedOption === q.correctOption;
+          
+          if (selectedOption) selectedOptions.push(selectedOption);
+          correctOptionsText = q.correctOption || "";
+          studentOptionText = selectedOption || "Not answered";
+          originalIndices = [originalIndex];
+          selectedShuffledIndices = [selectedShuffled];
+        }
+
         const awarded = isCorrect ? questionMarks : 0;
         if (isCorrect) score += awarded;
-        if (studentAnswer) studentAnswer.marksAwarded = awarded;
+        if (studentAnswer) {
+          studentAnswer.marksAwarded = awarded;
+          if (selectedShuffledIndices.length > 0) {
+            studentAnswer.selectedIndices = selectedShuffledIndices;
+          }
+        }
 
         return {
           questionId: q._id,
@@ -468,10 +504,10 @@ const submitExam = async (req, res, next) => {
           type,
           marks: questionMarks,
           marksAwarded: awarded,
-          selectedShuffledIndex: selectedShuffled,
-          originalSelectedIndex: originalIndex,
-          correctOption: q.correctOption,
-          studentOption: selectedOption,
+          selectedShuffledIndices,
+          originalSelectedIndices: originalIndices,
+          correctOption: correctOptionsText,
+          studentOption: studentOptionText,
           isCorrect,
         };
       } else {

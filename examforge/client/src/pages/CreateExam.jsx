@@ -87,13 +87,16 @@ function CreateExam({ isEditing = false }) {
             questions:
               data.questions && data.questions.length
                 ? data.questions.map((q) => {
-                    if ((q.type || "mcq") === "mcq" && q.correctOption) {
+                    if ((q.type || "mcq") === "mcq") {
+                      const correctIndices = Array.isArray(q.correctOptions) && q.correctOptions.length > 0
+                        ? q.correctOptions.map(opt => q.options.indexOf(opt)).filter(idx => idx !== -1)
+                        : (q.correctOption ? [q.options.indexOf(q.correctOption)] : [0]);
+
                       return {
                         ...q,
-                        correctIndex: Math.max(
-                          0,
-                          q.options.indexOf(q.correctOption),
-                        ),
+                        isMultiSelect: q.isMultiSelect || (Array.isArray(q.correctOptions) && q.correctOptions.length > 1),
+                        correctIndices: correctIndices.length > 0 ? correctIndices : [0],
+                        correctIndex: correctIndices.length > 0 ? correctIndices[0] : 0,
                       };
                     }
                     return q;
@@ -152,9 +155,16 @@ function CreateExam({ isEditing = false }) {
             setError(`Question ${i + 1}: all 4 options must be filled.`);
             return false;
           }
-          if (q.correctIndex === undefined || q.correctIndex === null) {
-            setError(`Question ${i + 1}: please mark the correct answer.`);
-            return false;
+          if (q.isMultiSelect) {
+            if (!q.correctIndices || q.correctIndices.length === 0) {
+              setError(`Question ${i + 1}: please select at least one correct answer.`);
+              return false;
+            }
+          } else {
+            if (q.correctIndex === undefined || q.correctIndex === null) {
+              setError(`Question ${i + 1}: please mark the correct answer.`);
+              return false;
+            }
           }
         }
       }
@@ -183,8 +193,27 @@ function CreateExam({ isEditing = false }) {
     try {
       const cleanRules = rules.filter((r) => r.trim());
       const mappedQuestions = questions.map((q) => {
-        if ((q.type || "mcq") === "mcq")
-          return { ...q, correctOption: q.options[q.correctIndex] };
+        if ((q.type || "mcq") === "mcq") {
+          if (q.isMultiSelect) {
+            const correctOpts = Array.isArray(q.correctIndices)
+              ? q.correctIndices.map(idx => q.options[idx]).filter(Boolean)
+              : [q.options[q.correctIndex || 0]];
+            return {
+              ...q,
+              isMultiSelect: true,
+              correctOptions: correctOpts,
+              correctOption: correctOpts[0] || "",
+            };
+          } else {
+            const correctOpt = q.options[q.correctIndex !== undefined ? q.correctIndex : 0];
+            return {
+              ...q,
+              isMultiSelect: false,
+              correctOption: correctOpt,
+              correctOptions: [correctOpt],
+            };
+          }
+        }
         return q;
       });
       const payload = {

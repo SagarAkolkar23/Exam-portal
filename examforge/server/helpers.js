@@ -2,7 +2,14 @@
 
 const stripCorrectIndex = (questions) =>
   questions.map((q) => {
-    const base = { _id: q._id, text: q.text, type: q.type || 'mcq', marks: q.marks, description: q.description };
+    const base = { 
+      _id: q._id, 
+      text: q.text, 
+      type: q.type || 'mcq', 
+      marks: q.marks, 
+      description: q.description,
+      isMultiSelect: q.isMultiSelect || false
+    };
     if ((q.type || 'mcq') === 'mcq') base.options = q.options;
     return base;
   });
@@ -20,10 +27,32 @@ const  validateQuestions  = (questions) => {
         return `Question ${i + 1}: MCQ must have exactly 4 options.`;
       if (q.options.some((o) => !o || !o.trim()))
         return `Question ${i + 1}: all 4 options must be filled.`;
-      if (!q.correctOption || typeof q.correctOption !== 'string' || !q.correctOption.trim())
+      
+      const hasCorrectOption = q.correctOption && typeof q.correctOption === 'string' && q.correctOption.trim();
+      const hasCorrectOptions = Array.isArray(q.correctOptions) && q.correctOptions.length > 0;
+
+      if (!hasCorrectOption && !hasCorrectOptions)
         return `Question ${i + 1}: a correct answer must be selected.`;
-      if (!q.options.includes(q.correctOption))
-        return `Question ${i + 1}: correct answer must match one of the options.`;
+
+      if (hasCorrectOptions) {
+        for (const opt of q.correctOptions) {
+          if (!q.options.includes(opt)) {
+            return `Question ${i + 1}: correct answer "${opt}" must match one of the options.`;
+          }
+        }
+        if (q.correctOptions.length > 1) {
+          q.isMultiSelect = true;
+          q.correctOption = q.correctOptions[0];
+        } else {
+          q.isMultiSelect = q.isMultiSelect || false;
+          q.correctOption = q.correctOptions[0];
+        }
+      } else {
+        if (!q.options.includes(q.correctOption))
+          return `Question ${i + 1}: correct answer must match one of the options.`;
+        q.correctOptions = [q.correctOption];
+        q.isMultiSelect = false;
+      }
     }
   }
   return null;

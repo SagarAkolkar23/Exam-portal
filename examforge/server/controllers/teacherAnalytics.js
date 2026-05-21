@@ -274,17 +274,33 @@ const getQuestionAnalysis = async (req, res, next) => {
         );
 
         if (q.type === 'mcq') {
-          if (!answer || answer.selectedIndex === -1 || answer.selectedIndex == null) {
+          const selectedIndices = answer && Array.isArray(answer.selectedIndices) && answer.selectedIndices.length > 0
+            ? answer.selectedIndices
+            : (answer && answer.selectedIndex !== -1 && answer.selectedIndex != null ? [answer.selectedIndex] : []);
+
+          if (selectedIndices.length === 0) {
             bucket.skipped.push(studentInfo);
             continue;
           }
-          // Unshuffle the selected index back to original
-          const shuffleMap   = exam.shuffleOptions
+
+          const shuffleMap = exam.shuffleOptions
             ? getShuffleMap(sub.paperSet, qIdx)
             : [0, 1, 2, 3];
-          const originalIdx  = unshuffleIndex(answer.selectedIndex, shuffleMap);
-          const chosenOption = q.options?.[originalIdx] ?? null;
-          const isCorrect    = chosenOption === q.correctOption;
+
+          let isCorrect = false;
+          if (q.correctOptions && q.correctOptions.length > 0) {
+            const originalIndices = selectedIndices.map(shIdx => shIdx >= 0 ? unshuffleIndex(shIdx, shuffleMap) : -1).filter(idx => idx >= 0);
+            const selectedOptions = originalIndices.map(origIdx => q.options?.[origIdx]).filter(Boolean);
+
+            if (selectedOptions.length === q.correctOptions.length) {
+              isCorrect = q.correctOptions.every(opt => selectedOptions.includes(opt)) &&
+                          selectedOptions.every(opt => q.correctOptions.includes(opt));
+            }
+          } else {
+            const originalIdx  = unshuffleIndex(selectedIndices[0], shuffleMap);
+            const chosenOption = q.options?.[originalIdx] ?? null;
+            isCorrect = chosenOption === q.correctOption;
+          }
 
           if (isCorrect) bucket.correct.push(studentInfo);
           else           bucket.wrong.push(studentInfo);
@@ -309,6 +325,8 @@ const getQuestionAnalysis = async (req, res, next) => {
         type:         q.type,
         marks:        q.marks,
         correctOption: q.correctOption ?? null,
+        correctOptions: q.correctOptions ?? [],
+        isMultiSelect: q.isMultiSelect ?? false,
         correct:      bucket.correct,
         wrong:        bucket.wrong,
         skipped:      bucket.skipped,

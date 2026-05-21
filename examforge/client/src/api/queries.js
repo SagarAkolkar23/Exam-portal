@@ -199,3 +199,33 @@ export const useIncrementCheats = () => {
     }),
   });
 };
+
+export const useCreateStudent = () => {
+  return useCustomMutation({
+    mutationFn: (data) => ({
+      url: '/students',
+      method: 'POST',
+      data,
+    }),
+  });
+};
+
+export const useUpdateStudent = () => {
+  return useCustomMutation({
+    mutationFn: ({ id, data }) => ({
+      url: `/students/${id}`,
+      method: 'PUT',
+      data,
+    }),
+  });
+};
+
+export const useDeleteStudent = () => {
+  return useCustomMutation({
+    mutationFn: (id) => ({
+      url: `/students/${id}`,
+      method: 'DELETE',
+    }),
+  });
+};
+

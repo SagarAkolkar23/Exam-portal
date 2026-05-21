@@ -63,7 +63,11 @@ export const useExamSessionStore = create(
               answers[key] =
                 a.textAnswer !== undefined && a.textAnswer !== ''
                   ? { textAnswer: a.textAnswer, answeredAt: a.answeredAt ?? new Date().toISOString() }
-                  : { selectedIndex: a.selectedIndex ?? null, answeredAt: a.answeredAt ?? new Date().toISOString() };
+                  : { 
+                      selectedIndex: a.selectedIndex ?? null, 
+                      selectedIndices: a.selectedIndices ?? (a.selectedIndex !== undefined && a.selectedIndex !== null && a.selectedIndex !== -1 ? [a.selectedIndex] : []),
+                      answeredAt: a.answeredAt ?? new Date().toISOString() 
+                    };
             }
           }
         }
@@ -112,12 +116,13 @@ export const useExamSessionStore = create(
       // ─────────────────────────────────────────────────────────────────────
       // Answers — each write stamps answeredAt so the server gets audit trail
       // ─────────────────────────────────────────────────────────────────────
-      setMcqAnswer: (questionId, selectedIndex) =>
+      setMcqAnswer: (questionId, selectedIndex, selectedIndices = []) =>
         set((s) => ({
           answers: {
             ...s.answers,
             [questionId]: {
               selectedIndex,
+              selectedIndices,
               answeredAt: new Date().toISOString(),
             },
           },
@@ -185,8 +190,10 @@ export const useExamSessionStore = create(
       isAttempted: (questionId) => {
         const ans = get().answers[questionId];
         if (!ans) return false;
+        if ('selectedIndices' in ans)
+          return Array.isArray(ans.selectedIndices) && ans.selectedIndices.length > 0;
         if ('selectedIndex' in ans)
-          return ans.selectedIndex !== null && ans.selectedIndex !== undefined;
+          return ans.selectedIndex !== null && ans.selectedIndex !== undefined && ans.selectedIndex !== -1;
         if ('textAnswer' in ans) return ans.textAnswer.trim().length > 0;
         return false;
       },
@@ -199,7 +206,8 @@ export const useExamSessionStore = create(
         for (const q of questions) {
           const ans = answers[q._id];
           if (!ans) continue;
-          if ('selectedIndex' in ans && ans.selectedIndex !== null) attempted++;
+          if ('selectedIndices' in ans && Array.isArray(ans.selectedIndices) && ans.selectedIndices.length > 0) attempted++;
+          else if ('selectedIndex' in ans && ans.selectedIndex !== null && ans.selectedIndex !== -1) attempted++;
           else if ('textAnswer' in ans && ans.textAnswer.trim()) attempted++;
         }
         return {

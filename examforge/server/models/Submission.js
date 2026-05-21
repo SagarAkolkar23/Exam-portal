@@ -12,6 +12,11 @@ const AnswerSchema = new mongoose.Schema(
       default: -1,
     },
 
+    selectedIndices: {
+      type: [Number],
+      default: [],
+    },
+
     textAnswer: {
       type: String,
       default: '',

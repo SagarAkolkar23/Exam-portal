@@ -18,6 +18,7 @@ import ExamAttempt from './pages/ExamAttempt';
 import ExamSession from './pages/ExamSession';
 import ExamResult from './pages/ExamResult';
 import StudentDashboard from './pages/StudentDashboard';
+import ManageStudents from './pages/ManageStudents';
 
 function App() {
   const { isAuthenticated, role } = useAuth();
@@ -95,6 +96,16 @@ function App() {
           <ProtectedRoute role="teacher">
             <TeacherLayout>
               <CreatePoll />
+            </TeacherLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/teacher/students"
+        element={
+          <ProtectedRoute role="teacher">
+            <TeacherLayout>
+              <ManageStudents />
             </TeacherLayout>
           </ProtectedRoute>
         }

@@ -180,14 +180,29 @@ function ExamReview({
                       </div>
                       {!isDesc && q.options && (
                         <ul className="ml-8 space-y-2 mt-4">
-                          {q.options.map((opt, oi) => (
-                            <li key={oi} className={`text-sm flex items-center gap-2 ${q.correctIndex === oi ? 'text-success font-bold' : 'text-slate-600'}`}>
-                              <div className={`w-4 h-4 rounded-full border flex items-center justify-center flex-shrink-0 ${q.correctIndex === oi ? 'border-success bg-green-50' : 'border-slate-300'}`}>
-                                {q.correctIndex === oi && <div className="w-2 h-2 rounded-full bg-success" />}
-                              </div>
-                              {opt}
-                            </li>
-                          ))}
+                          {q.options.map((opt, oi) => {
+                            const isCorrect = q.isMultiSelect 
+                              ? (q.correctIndices && q.correctIndices.includes(oi))
+                              : q.correctIndex === oi;
+                            return (
+                              <li key={oi} className={`text-sm flex items-center gap-2 ${isCorrect ? 'text-success font-bold' : 'text-slate-600'}`}>
+                                {q.isMultiSelect ? (
+                                  <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${isCorrect ? 'border-success bg-green-50' : 'border-slate-300'}`}>
+                                    {isCorrect && (
+                                      <svg className="w-3.5 h-3.5 text-success" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3.5} d="M5 13l4 4L19 7" />
+                                      </svg>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <div className={`w-4 h-4 rounded-full border flex items-center justify-center flex-shrink-0 ${isCorrect ? 'border-success bg-green-50' : 'border-slate-300'}`}>
+                                    {isCorrect && <div className="w-2 h-2 rounded-full bg-success" />}
+                                  </div>
+                                )}
+                                {opt}
+                              </li>
+                            );
+                          })}
                         </ul>
                       )}
                       {isDesc && (

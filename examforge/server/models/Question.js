@@ -45,6 +45,14 @@ const QuestionSchema = new mongoose.Schema({
     type: String,
     // Required only for MCQ; validated in route layer
   },
+  correctOptions: {
+    type: [String],
+    default: undefined,
+  },
+  isMultiSelect: {
+    type: Boolean,
+    default: false,
+  },
 });
 
 module.exports = mongoose.model('Question', QuestionSchema);

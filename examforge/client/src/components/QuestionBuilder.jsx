@@ -5,6 +5,8 @@ const LABELS = ['A', 'B', 'C', 'D'];
 function QuestionBuilder({ index, question, onChange, onRemove, canRemove }) {
   const update = (field, value) => onChange({ ...question, [field]: value });
   const type = question.type || 'mcq';
+  const isMultiSelect = question.isMultiSelect || false;
+  const correctIndices = question.correctIndices || (question.correctIndex !== undefined ? [question.correctIndex] : [0]);
 
   const updateOption = (optIdx, value) => {
     const options = [...(question.options || ['', '', '', ''])];
@@ -15,10 +17,24 @@ function QuestionBuilder({ index, question, onChange, onRemove, canRemove }) {
   const switchType = (newType) => {
     if (newType === type) return;
     if (newType === 'mcq') {
-      onChange({ ...question, type: 'mcq', options: ['', '', '', ''], correctIndex: 0 });
+      onChange({ 
+        ...question, 
+        type: 'mcq', 
+        options: ['', '', '', ''], 
+        correctIndex: 0,
+        correctIndices: [0],
+        isMultiSelect: false
+      });
     } else {
       // Strip MCQ-specific fields for descriptive
-      onChange({ ...question, type: 'descriptive', options: undefined, correctIndex: undefined });
+      onChange({ 
+        ...question, 
+        type: 'descriptive', 
+        options: undefined, 
+        correctIndex: undefined,
+        correctIndices: undefined,
+        isMultiSelect: undefined
+      });
     }
   };
 
@@ -89,8 +105,6 @@ function QuestionBuilder({ index, question, onChange, onRemove, canRemove }) {
             <span className="text-xs text-slate-500 font-medium">CO:</span>
             <input
               type="text"
-              min={0}
-              step={0.5}
               value={question.description || ""}
               onChange={(e) => update("description", e.target.value)}
               className="w-16 text-center text-sm font-semibold text-ink border border-line rounded-md px-2 py-1 outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 bg-white"
@@ -138,13 +152,41 @@ function QuestionBuilder({ index, question, onChange, onRemove, canRemove }) {
 
         {/* ── MCQ Options ── */}
         {type === "mcq" && (
-          <div className="flex flex-col gap-3">
-            <p className="text-xs text-slate-400 font-medium uppercase tracking-wide">
-              Click the radio to mark the correct answer
-            </p>
+          <div className="flex flex-col gap-4">
+            <div className="flex items-center justify-between pb-1 border-b border-line">
+              <p className="text-xs text-slate-400 font-medium uppercase tracking-wide">
+                {isMultiSelect 
+                  ? "Select all options that are correct answers" 
+                  : "Select the option that is the correct answer"}
+              </p>
+              
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input 
+                  type="checkbox"
+                  checked={isMultiSelect}
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    const nextIndices = checked 
+                      ? (question.correctIndex !== undefined ? [question.correctIndex] : [0])
+                      : (correctIndices[0] !== undefined ? correctIndices[0] : 0);
+                    onChange({
+                      ...question,
+                      isMultiSelect: checked,
+                      correctIndices: checked ? nextIndices : undefined,
+                      correctIndex: checked ? undefined : nextIndices
+                    });
+                  }}
+                  className="rounded border-slate-300 text-primary focus:ring-primary w-4 h-4 cursor-pointer"
+                />
+                <span className="text-xs font-semibold text-slate-600 hover:text-primary transition-colors">Multiple Correct Answers</span>
+              </label>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {LABELS.map((label, optIdx) => {
-                const isCorrect = question.correctIndex === optIdx;
+                const isCorrect = isMultiSelect 
+                  ? correctIndices.includes(optIdx)
+                  : question.correctIndex === optIdx;
                 return (
                   <label
                     key={optIdx}
@@ -155,21 +197,46 @@ function QuestionBuilder({ index, question, onChange, onRemove, canRemove }) {
                           : "border-slate-200 hover:border-slate-300"
                       }`}
                   >
-                    <div
-                      className="flex items-center justify-center w-5 h-5 rounded-full border-2 flex-shrink-0"
-                      style={{ borderColor: isCorrect ? "#4f46e5" : "#cbd5e1" }}
-                    >
-                      {isCorrect && (
-                        <div className="w-2.5 h-2.5 rounded-full bg-primary" />
-                      )}
-                    </div>
+                    {isMultiSelect ? (
+                      <div
+                        className="flex items-center justify-center w-5 h-5 rounded border-2 flex-shrink-0 transition-colors"
+                        style={{ 
+                          borderColor: isCorrect ? "#4f46e5" : "#cbd5e1",
+                          backgroundColor: isCorrect ? "#4f46e5" : "transparent"
+                        }}
+                      >
+                        {isCorrect && (
+                          <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                          </svg>
+                        )}
+                      </div>
+                    ) : (
+                      <div
+                        className="flex items-center justify-center w-5 h-5 rounded-full border-2 flex-shrink-0"
+                        style={{ borderColor: isCorrect ? "#4f46e5" : "#cbd5e1" }}
+                      >
+                        {isCorrect && (
+                          <div className="w-2.5 h-2.5 rounded-full bg-primary" />
+                        )}
+                      </div>
+                    )}
 
                     <input
-                      type="radio"
-                      name={`correct-${index}`}
+                      type={isMultiSelect ? "checkbox" : "radio"}
+                      name={isMultiSelect ? `correct-multi-${index}-${optIdx}` : `correct-${index}`}
                       value={optIdx}
                       checked={isCorrect}
-                      onChange={() => update("correctIndex", optIdx)}
+                      onChange={() => {
+                        if (isMultiSelect) {
+                          const next = correctIndices.includes(optIdx)
+                            ? correctIndices.filter(i => i !== optIdx)
+                            : [...correctIndices, optIdx];
+                          onChange({ ...question, correctIndices: next });
+                        } else {
+                          onChange({ ...question, correctIndex: optIdx });
+                        }
+                      }}
                       className="sr-only"
                     />
 

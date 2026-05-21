@@ -145,6 +145,7 @@ const startExam = async (req, res, next) => {
         marks
         type
         description
+        isMultiSelect
       `);
 
     if (!questions.length) {
@@ -464,6 +465,8 @@ const finalSubmit = async (req, res, next) => {
         text
         options
         correctOption
+        correctOptions
+        isMultiSelect
         marks
         type
         description
@@ -526,14 +529,34 @@ const finalSubmit = async (req, res, next) => {
           question._id.toString(),
         );
 
-        // GET SELECTED OPTION TEXT
-        const originalIndex = optionOrder[answer.selectedIndex];
-        const selectedOption = question.options[originalIndex];
+        let selectedOptions = [];
+        let correctOptionsText = "";
 
-        // CHECK ANSWER
-        if (selectedOption === question.correctOption) {
-          isCorrect = true;
+        if (question.correctOptions && question.correctOptions.length > 0) {
+          const selectedIndices = Array.isArray(answer.selectedIndices)
+            ? answer.selectedIndices
+            : (answer.selectedIndex !== -1 && answer.selectedIndex !== undefined ? [answer.selectedIndex] : []);
+          
+          const originalIndices = selectedIndices.map(idx => optionOrder[idx]).filter(idx => idx !== undefined);
+          selectedOptions = originalIndices.map(idx => question.options[idx]).filter(Boolean);
 
+          if (selectedOptions.length === question.correctOptions.length) {
+            isCorrect = question.correctOptions.every(opt => selectedOptions.includes(opt)) &&
+                        selectedOptions.every(opt => question.correctOptions.includes(opt));
+          }
+          correctOptionsText = question.correctOptions.join(", ");
+        } else {
+          const originalIndex = optionOrder[answer.selectedIndex];
+          const selectedOption = question.options[originalIndex];
+          if (selectedOption) selectedOptions.push(selectedOption);
+
+          if (selectedOption === question.correctOption) {
+            isCorrect = true;
+          }
+          correctOptionsText = question.correctOption;
+        }
+
+        if (isCorrect) {
           marksAwarded = question.marks || 1;
 
           correctAnswers++;
@@ -543,9 +566,9 @@ const finalSubmit = async (req, res, next) => {
 
             question: question.text,
 
-            selectedOption,
+            selectedOption: selectedOptions.join(", ") || "Not selected",
 
-            correctOption: question.correctOption,
+            correctOption: correctOptionsText,
 
             marksAwarded,
           });
@@ -557,9 +580,9 @@ const finalSubmit = async (req, res, next) => {
 
             question: question.text,
 
-            selectedOption: selectedOption || "Not selected",
+            selectedOption: selectedOptions.join(", ") || "Not selected",
 
-            correctOption: question.correctOption,
+            correctOption: correctOptionsText,
 
             explanation: question.explanation || "",
 
@@ -574,6 +597,8 @@ const finalSubmit = async (req, res, next) => {
         questionId: answer.questionId,
 
         selectedIndex: answer.selectedIndex ?? -1,
+
+        selectedIndices: answer.selectedIndices ?? (answer.selectedIndex !== -1 && answer.selectedIndex !== undefined ? [answer.selectedIndex] : []),
 
         textAnswer: answer.textAnswer || "",
 

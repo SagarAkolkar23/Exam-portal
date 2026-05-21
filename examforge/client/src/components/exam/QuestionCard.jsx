@@ -67,7 +67,9 @@ export default function QuestionCard() {
       {question.type === 'mcq' ? (
         <McqOptions
           options={question.options}
+          isMultiSelect={question.isMultiSelect}
           selected={ans?.selectedIndex ?? null}
+          selectedIndices={ans?.selectedIndices ?? []}
           onSelect={(idx) => answerMcq(qId, idx)}
           onClear={() => clearAnswer(qId)}
         />
@@ -85,11 +87,27 @@ export default function QuestionCard() {
 // ─────────────────────────────────────────────────────────────────────────────
 // MCQ Options
 // ─────────────────────────────────────────────────────────────────────────────
-const McqOptions = memo(function McqOptions({ options, selected, onSelect, onClear }) {
+const McqOptions = memo(function McqOptions({ options, isMultiSelect, selected, selectedIndices, onSelect, onClear }) {
+  const isAnySelected = isMultiSelect 
+    ? (Array.isArray(selectedIndices) && selectedIndices.length > 0)
+    : (selected !== null && selected !== undefined && selected !== -1);
+
   return (
     <div className="flex flex-col gap-3">
+      {isMultiSelect && (
+        <div className="flex items-center gap-2 bg-indigo-50/50 border border-indigo-100 rounded-xl px-4 py-2.5 mb-2">
+          <svg className="w-4 h-4 text-indigo-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <span className="text-xs text-indigo-700 font-semibold leading-relaxed">
+            Multiple correct answers: you must select ALL correct options to score.
+          </span>
+        </div>
+      )}
       {(options ?? []).map((opt, idx) => {
-        const isSelected = selected === idx;
+        const isSelected = isMultiSelect 
+          ? (Array.isArray(selectedIndices) && selectedIndices.includes(idx))
+          : (selected === idx);
         return (
           <button
             key={idx}
@@ -104,11 +122,12 @@ const McqOptions = memo(function McqOptions({ options, selected, onSelect, onCle
                 : 'bg-white border-slate-200 text-slate-800 hover:border-indigo-300 hover:bg-indigo-50/40'}
             `}
           >
-            {/* Label circle */}
+            {/* Label box / circle */}
             <span
               className={`
-                flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center
+                flex-shrink-0 w-7 h-7 flex items-center justify-center
                 text-xs font-bold border transition-colors duration-150
+                ${isMultiSelect ? 'rounded-md' : 'rounded-full'}
                 ${isSelected
                   ? 'bg-indigo-600 border-indigo-600 text-white'
                   : 'bg-slate-100 border-slate-300 text-slate-500 group-hover:border-indigo-400'}
@@ -126,7 +145,7 @@ const McqOptions = memo(function McqOptions({ options, selected, onSelect, onCle
         );
       })}
 
-      {selected !== null && selected !== undefined && (
+      {isAnySelected && (
         <button
           id="mcq-clear-btn"
           onClick={onClear}
