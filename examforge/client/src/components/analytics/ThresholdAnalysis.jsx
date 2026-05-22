@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
-import api from '../../api/axios';
+import { useGetThresholdReport } from '../../api/queries';
+import { useAnalyticsStore } from "../../store/analyticsStore";
 
 const COLORS = ['#10b981', '#f43f5e']; // Emerald (>= threshold) and Rose (< threshold)
 
@@ -32,41 +32,25 @@ const renderCustomLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, value }
   );
 };
 
+
 export default function ThresholdAnalysis({
-  examId,
-  totalMarks = 100,
-  semester,
-  studentClass,
-  division,
-  year
+  totalMarks = 100
 }) {
+  const { examId } = useAnalyticsStore();
   const [threshold, setThreshold] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
   const [activeSlice, setActiveSlice] = useState('above'); // 'above' or 'below'
 
-  // Set default threshold to 50% of totalMarks when examId or totalMarks changes
   useEffect(() => {
     setThreshold(Math.round(totalMarks / 2));
   }, [examId, totalMarks]);
 
-  // Fetch threshold report based on prop filters
   const isQueryEnabled = !!examId;
-  const { data: reportData, isLoading: loadingReport, error: reportError } = useQuery({
-    queryKey: ['threshold-report', examId, threshold, semester, studentClass, division, year],
-    enabled: isQueryEnabled,
-    queryFn: () => {
-      const params = new URLSearchParams({
-        examId,
-        threshold: threshold.toString(),
-      });
-      if (semester) params.set('semester', semester);
-      if (studentClass) params.set('studentClass', studentClass);
-      if (division) params.set('division', division);
-      if (year) params.set('year', year.toString());
-      return api.get(`/teacher/analytics/threshold-report?${params}`).then((r) => r.data);
-    },
-    staleTime: 10_000,
-  });
+
+  const { data: reportData, isLoading: loadingReport, error: reportError } = useGetThresholdReport(
+    threshold,
+    isQueryEnabled
+  );
 
   // Recharts data
   const chartData = useMemo(() => {
@@ -111,12 +95,11 @@ export default function ThresholdAnalysis({
 
   return (
     <div className="bg-white border border-slate-200/60 rounded-3xl p-5 shadow-sm space-y-4">
-      
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-3 gap-3">
         <div>
           <h3 className="text-md font-bold text-slate-800 tracking-tight flex items-center gap-1.5">
-            🎯 Custom Threshold Performance Analyzer
+            🎯 Custom Threshold Performance Analyzer  
           </h3>
           <p className="text-xs text-slate-400 font-medium">
             Benchmark and split student cohorts based on a customizable threshold mark.

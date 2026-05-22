@@ -6,6 +6,7 @@ const initialBasicState = {
   description: '',
   duration: 60,
   totalMarks: '',
+  numQuestions: '',
   scheduledStart: '',
   scheduledEnd: '',
   latestJoinTime: '',

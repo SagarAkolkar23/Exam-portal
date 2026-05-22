@@ -3,6 +3,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   Legend, ResponsiveContainer, Cell,
 } from 'recharts';
+import { useGetQuestionAnalysis } from '../../api/queries';
 
 const CustomTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null;
@@ -18,10 +19,28 @@ const CustomTooltip = ({ active, payload, label }) => {
   );
 };
 
-export default function QuestionAnalysisChart({ questions }) {
+export default function QuestionAnalysisChart() {
   const [selected, setSelected] = useState(null);
 
-  if (!questions || questions.length === 0) {
+  const { data: qAnalysisData, isLoading, error } = useGetQuestionAnalysis();
+
+  if (isLoading) {
+    return <LoadingSkeleton />;
+  }
+
+  if (error) {
+    return (
+      <div className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm flex flex-col justify-center min-h-[360px]">
+        <div className="text-xs bg-red-50 text-red-700 border border-red-100 p-4 rounded-xl">
+          Error retrieving question analysis: {error.message || 'Unknown error'}
+        </div>
+      </div>
+    );
+  }
+
+  const questions = qAnalysisData?.questions ?? [];
+
+  if (questions.length === 0) {
     return <EmptyChart message="No questions available for analysis." />;
   }
 
@@ -40,7 +59,7 @@ export default function QuestionAnalysisChart({ questions }) {
   const selectedQ = selected !== null ? chartData[selected] : null;
 
   return (
-    <div className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm">
+    <div className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm min-h-[360px]">
       <div className="flex items-start justify-between mb-6">
         <div>
           <h3 className="text-lg font-bold text-slate-900 tracking-tight">Question-wise Performance</h3>
@@ -51,7 +70,7 @@ export default function QuestionAnalysisChart({ questions }) {
         </span>
       </div>
 
-      <ResponsiveContainer width="100%" height={300}>
+      <ResponsiveContainer width="100%" height={260}>
         <BarChart data={chartData} barCategoryGap="25%" onClick={(data, idx) => setSelected(selected === idx ? null : idx)}>
           <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
           <XAxis
@@ -92,7 +111,7 @@ export default function QuestionAnalysisChart({ questions }) {
 
       {/* Drill-down panel */}
       {selectedQ && (
-        <div className="mt-6 border-t border-slate-100 pt-5">
+        <div className="mt-6 border-t border-slate-100 pt-5 animate-[fadeIn_0.2s_ease]">
           <div className="flex items-start justify-between mb-4">
             <div className="flex-1">
               <p className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">{selectedQ.name}</p>
@@ -140,9 +159,24 @@ export default function QuestionAnalysisChart({ questions }) {
 
 function EmptyChart({ message }) {
   return (
-    <div className="bg-white border border-slate-100 rounded-3xl p-10 shadow-sm flex flex-col items-center justify-center gap-3 min-h-[260px]">
-      <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-2xl">📝</div>
+    <div className="bg-white border border-slate-100 rounded-3xl p-10 shadow-sm flex flex-col items-center justify-center gap-3 min-h-[360px]">
+      <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-2xl animate-pulse">📝</div>
       <p className="text-slate-400 font-medium text-sm">{message}</p>
+    </div>
+  );
+}
+
+function LoadingSkeleton() {
+  return (
+    <div className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm min-h-[360px] animate-pulse space-y-4">
+      <div className="flex justify-between items-center">
+        <div className="space-y-2">
+          <div className="h-4 w-40 bg-slate-100 rounded" />
+          <div className="h-3 w-60 bg-slate-50 rounded" />
+        </div>
+        <div className="h-6 w-20 bg-slate-100 rounded-full" />
+      </div>
+      <div className="h-[260px] bg-slate-50 rounded-2xl" />
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import { useCustomMutation, useCustomQuery } from './useQuery';
+import { useAnalyticsStore } from '../store/analyticsStore';
 
 export const useTeacherLogin = () => {
   return useCustomMutation({
@@ -246,6 +247,110 @@ export const useDeleteStudent = () => {
       url: `/students/${id}`,
       method: 'DELETE',
     }),
+  });
+};
+
+// ── Teacher Analytics Queries ───────────────────────────────────────────────
+
+export const useGetTeacherAnalyticsExams = () => {
+  return useCustomQuery({
+    queryKey: ['teacher-analytics-overview'],
+    queryFn: () => ({
+      url: '/teacher/analytics/exams',
+      method: 'GET',
+    }),
+    staleTime: 60_000,
+  });
+};
+
+export const useGetScoreDistribution = (enabled = true) => {
+  const { examId, semester, studentClass, division, year } = useAnalyticsStore();
+  const params = {};
+  if (semester) params.semester = semester;
+  if (studentClass) params.studentClass = studentClass;
+  if (division) params.division = division;
+  if (year) params.year = year;
+
+  return useCustomQuery({
+    queryKey: ['score-distribution', examId, semester, studentClass, division, year],
+    queryFn: () => ({
+      url: `/teacher/analytics/exams/${examId}/score-distribution`,
+      method: 'GET',
+      params,
+    }),
+    enabled: !!examId && enabled,
+    staleTime: 30_000,
+  });
+};
+
+export const useGetCheatReport = (enabled = true) => {
+  const { examId, semester, studentClass, division, year } = useAnalyticsStore();
+  const params = {};
+  if (semester) params.semester = semester;
+  if (studentClass) params.studentClass = studentClass;
+  if (division) params.division = division;
+  if (year) params.year = year;
+
+  return useCustomQuery({
+    queryKey: ['cheat-report', examId, semester, studentClass, division, year],
+    queryFn: () => ({
+      url: `/teacher/analytics/exams/${examId}/cheat-report`,
+      method: 'GET',
+      params,
+    }),
+    enabled: !!examId && enabled,
+    staleTime: 30_000,
+  });
+};
+
+export const useGetQuestionAnalysis = (enabled = true) => {
+  const { examId, semester, studentClass, division, year } = useAnalyticsStore();
+  const params = {};
+  if (semester) params.semester = semester;
+  if (studentClass) params.studentClass = studentClass;
+  if (division) params.division = division;
+  if (year) params.year = year;
+
+  return useCustomQuery({
+    queryKey: ['question-analysis', examId, semester, studentClass, division, year],
+    queryFn: () => ({
+      url: `/teacher/analytics/exams/${examId}/question-analysis`,
+      method: 'GET',
+      params,
+    }),
+    enabled: !!examId && enabled,
+    staleTime: 30_000,
+  });
+};
+
+export const useGetClassesAndYears = () => {
+  return useCustomQuery({
+    queryKey: ['threshold-filters'],
+    queryFn: () => ({
+      url: '/teacher/analytics/classes-years',
+      method: 'GET',
+    }),
+    staleTime: 60_000,
+  });
+};
+
+export const useGetThresholdReport = (threshold, enabled = true) => {
+  const { examId, semester, studentClass, division, year } = useAnalyticsStore();
+  const params = { threshold: threshold.toString(), examId };
+  if (semester) params.semester = semester;
+  if (studentClass) params.studentClass = studentClass;
+  if (division) params.division = division;
+  if (year) params.year = year.toString();
+
+  return useCustomQuery({
+    queryKey: ['threshold-report', examId, threshold, semester, studentClass, division, year],
+    queryFn: () => ({
+      url: `/teacher/analytics/threshold-report`,
+      method: 'GET',
+      params,
+    }),
+    enabled: !!examId && enabled,
+    staleTime: 10_000,
   });
 };
 

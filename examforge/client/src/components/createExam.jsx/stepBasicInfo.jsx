@@ -91,6 +91,24 @@ function StepBasicInfo({
           </p>
         </div>
 
+        {/* Number of Questions */}
+        <div className="form-group">
+          <label className="form-label text-slate-500">NUMBER OF QUESTIONS</label>
+          <input
+            type="number"
+            min={1}
+            className="form-input py-2.5"
+            placeholder="e.g. 10"
+            value={basic.numQuestions || ""}
+            onChange={(e) =>
+              setBasic((f) => ({ ...f, numQuestions: e.target.value }))
+            }
+          />
+          <p className="text-xs text-slate-400 mt-1">
+            Equally divide marks and automatically generate question templates.
+          </p>
+        </div>
+
         {/* Toggles */}
         <div className="md:col-span-2 mt-2 space-y-4">
           <div className="flex items-center justify-between py-2 border-b border-line">

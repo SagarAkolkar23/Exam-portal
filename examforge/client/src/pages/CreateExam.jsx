@@ -173,7 +173,59 @@ function CreateExam({ isEditing = false }) {
     return true;
   };
 
+  const checkAndGenerateQuestionTemplates = () => {
+    const numQ = parseInt(basic.numQuestions);
+    const totalM = parseFloat(basic.totalMarks);
+    if (numQ > 0 && totalM > 0) {
+      const marksPerQ = Number((totalM / numQ).toFixed(2));
+
+      // If questions array only has 1 empty question, replace completely
+      const isDefaultEmpty =
+        questions.length === 1 &&
+        !questions[0].text.trim() &&
+        (!questions[0].options || !questions[0].options.some((o) => o.trim()));
+
+      let newQuestions = [...questions];
+      if (isDefaultEmpty) {
+        newQuestions = Array.from({ length: numQ }, () => ({
+          type: "mcq",
+          text: "",
+          marks: marksPerQ,
+          options: ["", "", "", ""],
+          correctIndex: 0,
+          isMultiSelect: false,
+        }));
+      } else {
+        // Pad or slice questions to match numQ
+        if (newQuestions.length < numQ) {
+          const extraCount = numQ - newQuestions.length;
+          const extraQs = Array.from({ length: extraCount }, () => ({
+            type: "mcq",
+            text: "",
+            marks: marksPerQ,
+            options: ["", "", "", ""],
+            correctIndex: 0,
+            isMultiSelect: false,
+          }));
+          newQuestions = [...newQuestions, ...extraQs];
+        } else if (newQuestions.length > numQ) {
+          newQuestions = newQuestions.slice(0, numQ);
+        }
+
+        // Re-assign equal marks to all questions
+        newQuestions = newQuestions.map((q) => ({
+          ...q,
+          marks: marksPerQ,
+        }));
+      }
+      setQuestions(newQuestions);
+    }
+  };
+
   const next = () => {
+    if (step === 1) {
+      checkAndGenerateQuestionTemplates();
+    }
     if (validate()) setStep((s) => Math.min(s + 1, 4));
   };
   const prev = () => {
@@ -181,6 +233,9 @@ function CreateExam({ isEditing = false }) {
     setStep((s) => Math.max(s - 1, 1));
   };
   const jumpToStep = (targetStep) => {
+    if (step === 1 && targetStep > 1) {
+      checkAndGenerateQuestionTemplates();
+    }
     setError("");
     setStep(targetStep);
   };
@@ -216,8 +271,9 @@ function CreateExam({ isEditing = false }) {
         }
         return q;
       });
+      const { numQuestions, ...basicWithoutNumQ } = basic;
       const payload = {
-        ...basic,
+        ...basicWithoutNumQ,
         duration: Number(basic.duration),
         totalMarks: basic.totalMarks !== "" ? Number(basic.totalMarks) : 0,
         questions: mappedQuestions,

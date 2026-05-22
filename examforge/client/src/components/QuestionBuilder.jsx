@@ -93,11 +93,9 @@ function QuestionBuilder({ index, question, onChange, onRemove, canRemove }) {
             <span className="text-xs text-slate-500 font-medium">Marks:</span>
             <input
               type="number"
-              min={0}
-              step={0.5}
               value={question.marks ?? 1}
-              onChange={(e) => update("marks", Number(e.target.value))}
-              className="w-16 text-center text-sm font-semibold text-ink border border-line rounded-md px-2 py-1 outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 bg-white"
+              readOnly
+              className="w-16 text-center text-sm font-semibold text-slate-500 border border-line rounded-md px-2 py-1 outline-none bg-slate-100 cursor-not-allowed"
             />
           </div>
 

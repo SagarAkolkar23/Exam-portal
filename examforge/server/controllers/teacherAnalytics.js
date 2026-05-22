@@ -163,13 +163,25 @@ const getScoreDistribution = async (req, res, next) => {
 const getCheatReport = async (req, res, next) => {
   try {
     const { examId } = req.params;
+    const { semester, studentClass, division, year } = req.query;
 
     const exam = await ownerExam(examId, req.user.id);
     if (!exam) return res.status(404).json({ message: 'Exam not found.' });
 
+    // Build filter for student group if query params provided
+    const studentFilter = { _id: { $in: exam.assignedStudents } };
+    if (semester)     studentFilter.semester     = Number(semester);
+    if (studentClass) studentFilter.studentClass = studentClass;
+    if (division)     studentFilter.division     = division;
+    if (year)         studentFilter.year         = Number(year);
+
+    const eligibleStudents = await Student.find(studentFilter, '_id name rollNumber email department year semester studentClass division').lean();
+    const eligibleIds = eligibleStudents.map((s) => s._id);
+
     const submissions = await Submission.find(
       {
         examId,
+        studentId:   { $in: eligibleIds },
         submittedAt: { $exists: true, $ne: null },
       },
       'studentId score percentage cheat status submittedAt'
@@ -177,14 +189,8 @@ const getCheatReport = async (req, res, next) => {
       .sort({ cheat: -1 })
       .lean();
 
-    // Populate student info
-    const studentIds = submissions.map((s) => s.studentId);
-    const students   = await Student.find(
-      { _id: { $in: studentIds } },
-      'name rollNumber email department year semester studentClass division'
-    ).lean();
     const studentMap = {};
-    for (const s of students) studentMap[s._id.toString()] = s;
+    for (const s of eligibleStudents) studentMap[s._id.toString()] = s;
 
     const report = submissions.map((sub, rank) => ({
       rank:       rank + 1,
@@ -221,16 +227,28 @@ const getCheatReport = async (req, res, next) => {
 const getQuestionAnalysis = async (req, res, next) => {
   try {
     const { examId } = req.params;
+    const { semester, studentClass, division, year } = req.query;
 
     const exam = await ownerExam(examId, req.user.id);
     if (!exam) return res.status(404).json({ message: 'Exam not found.' });
 
     const questions = await Question.find({ examId }).lean();
 
-    // All finished submissions
+    // Build filter for student group if query params provided
+    const studentFilter = { _id: { $in: exam.assignedStudents } };
+    if (semester)     studentFilter.semester     = Number(semester);
+    if (studentClass) studentFilter.studentClass = studentClass;
+    if (division)     studentFilter.division     = division;
+    if (year)         studentFilter.year         = Number(year);
+
+    const eligibleStudents = await Student.find(studentFilter, '_id name rollNumber email department year semester studentClass division').lean();
+    const eligibleIds = eligibleStudents.map((s) => s._id);
+
+    // All finished submissions for eligible students
     const submissions = await Submission.find(
       {
         examId,
+        studentId:   { $in: eligibleIds },
         submittedAt: { $exists: true, $ne: null },
       },
       'studentId answers paperSet'
@@ -256,13 +274,8 @@ const getQuestionAnalysis = async (req, res, next) => {
     }
 
     // Populate student lookup
-    const studentIds = submissions.map((s) => s.studentId);
-    const students   = await Student.find(
-      { _id: { $in: studentIds } },
-      'name rollNumber email department year'
-    ).lean();
     const studentMap = {};
-    for (const s of students) studentMap[s._id.toString()] = s;
+    for (const s of eligibleStudents) studentMap[s._id.toString()] = s;
 
     // Build question-level buckets
     const analysis = questions.map((q, qIdx) => {
@@ -388,12 +401,20 @@ const getClassesAndYears = async (req, res, next) => {
 // ─────────────────────────────────────────────────────────────────────────────
 const getThresholdReport = async (req, res, next) => {
   try {
+
     const { studentClass, year, semester, division, threshold, examId } = req.query;
     const teacherId = req.user.id;
+    console.log("exam id", examId);
 
     if (!examId || threshold === undefined) {
       return res.status(400).json({ message: 'Exam ID and Threshold are required.' });
     }
+
+    console.log("threshold", threshold)
+    console.log("student class", studentClass)
+    console.log("year", year)
+    console.log("semester", semester)
+    console.log("division", division)
 
     const parsedThreshold = Number(threshold);
 
@@ -482,6 +503,7 @@ const getThresholdReport = async (req, res, next) => {
       totalStudents: students.length
     });
   } catch (err) {
+    console.log(".................")
     next(err);
   }
 };
