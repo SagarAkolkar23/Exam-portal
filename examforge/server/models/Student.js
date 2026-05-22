@@ -24,6 +24,13 @@ const StudentSchema = new mongoose.Schema(
       trim: true,
       uppercase: true,
     },
+    prn: {
+      type: String,
+      unique: true,
+      sparse: true,
+      trim: true,
+      uppercase: true,
+    },
     department: {
       type: String,
       required: [true, 'Department is required'],

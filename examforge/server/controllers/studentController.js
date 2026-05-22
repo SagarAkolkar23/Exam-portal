@@ -9,7 +9,7 @@ const Student = require('../models/Student');
 const listStudents = async (req, res, next) => {
   try {
     const students = await Student.find({})
-      .select('name email rollNumber department year semester studentClass division createdAt')
+      .select('name email rollNumber prn department year semester studentClass division createdAt')
       .sort({ name: 1 })
       .lean();
 
@@ -62,7 +62,7 @@ const seedStudents = async (req, res, next) => {
  */
 const createStudent = async (req, res, next) => {
   try {
-    const { name, email, rollNumber, department, year, semester, studentClass, division, password } = req.body;
+    const { name, email, rollNumber, prn, department, year, semester, studentClass, division, password } = req.body;
 
     const existingEmail = await Student.findOne({ email });
     if (existingEmail) {
@@ -74,10 +74,18 @@ const createStudent = async (req, res, next) => {
       return res.status(400).json({ message: 'A student with this roll number already exists.' });
     }
 
+    if (prn) {
+      const existingPrn = await Student.findOne({ prn });
+      if (existingPrn) {
+        return res.status(400).json({ message: 'A student with this PRN already exists.' });
+      }
+    }
+
     const student = await Student.create({
       name,
       email,
       rollNumber,
+      prn: prn || undefined,
       department,
       year,
       semester,
@@ -99,7 +107,7 @@ const createStudent = async (req, res, next) => {
 const updateStudent = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { name, email, rollNumber, department, year, semester, studentClass, division, password } = req.body;
+    const { name, email, rollNumber, prn, department, year, semester, studentClass, division, password } = req.body;
 
     const student = await Student.findById(id);
     if (!student) {
@@ -120,6 +128,16 @@ const updateStudent = async (req, res, next) => {
         return res.status(400).json({ message: 'A student with this roll number already exists.' });
       }
       student.rollNumber = rollNumber;
+    }
+
+    if (prn && prn.toUpperCase() !== (student.prn || '').toUpperCase()) {
+      const existingPrn = await Student.findOne({ prn });
+      if (existingPrn) {
+        return res.status(400).json({ message: 'A student with this PRN already exists.' });
+      }
+      student.prn = prn;
+    } else if (prn === '') {
+      student.prn = undefined;
     }
 
     if (name) student.name = name;
@@ -157,11 +175,118 @@ const deleteStudent = async (req, res, next) => {
   }
 };
 
+/**
+ * POST /api/students/import
+ * Bulk import students parsed from an Excel sheet on the client-side.
+ */
+const importStudents = async (req, res, next) => {
+  try {
+    const { studentClass, year, department, semester, division, students } = req.body;
+
+    if (!studentClass || !year || !department) {
+      return res.status(400).json({ message: 'Class, Year, and Department (Branch) are required.' });
+    }
+
+    if (!Array.isArray(students) || students.length === 0) {
+      return res.status(400).json({ message: 'No student data provided.' });
+    }
+
+    const results = {
+      successCount: 0,
+      failedCount: 0,
+      errors: [],
+    };
+
+    for (let index = 0; index < students.length; index++) {
+      const s = students[index];
+      const { name, email, rollNumber, prn } = s;
+
+      if (!name || !email || !rollNumber) {
+        results.failedCount++;
+        results.errors.push({
+          row: index + 1,
+          email: email || 'N/A',
+          message: 'Name, email, and roll number are required for each student.',
+        });
+        continue;
+      }
+
+      try {
+        const existingEmail = await Student.findOne({ email });
+        if (existingEmail) {
+          results.failedCount++;
+          results.errors.push({
+            row: index + 1,
+            email,
+            message: `Email '${email}' is already in use by another student.`,
+          });
+          continue;
+        }
+
+        const existingRoll = await Student.findOne({ rollNumber });
+        if (existingRoll) {
+          results.failedCount++;
+          results.errors.push({
+            row: index + 1,
+            email,
+            message: `Roll number '${rollNumber}' is already in use.`,
+          });
+          continue;
+        }
+
+        if (prn) {
+          const existingPrn = await Student.findOne({ prn });
+          if (existingPrn) {
+            results.failedCount++;
+            results.errors.push({
+              row: index + 1,
+              email,
+              message: `PRN '${prn}' is already in use.`,
+            });
+            continue;
+          }
+        }
+
+        // Create student with default password 'student123'
+        await Student.create({
+          name,
+          email,
+          rollNumber,
+          prn: prn || undefined,
+          department,
+          year: Number(year),
+          semester: semester ? Number(semester) : undefined,
+          studentClass,
+          division: division || undefined,
+          passwordHash: 'student123',
+        });
+
+        results.successCount++;
+      } catch (err) {
+        results.failedCount++;
+        results.errors.push({
+          row: index + 1,
+          email,
+          message: err.message || 'Unknown database error occurred.',
+        });
+      }
+    }
+
+    res.status(201).json({
+      message: `Import completed. ${results.successCount} succeeded, ${results.failedCount} failed.`,
+      results,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   listStudents,
   seedStudents,
   createStudent,
   updateStudent,
   deleteStudent,
+  importStudents,
 };
 

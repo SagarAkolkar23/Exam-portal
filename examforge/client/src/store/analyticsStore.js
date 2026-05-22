@@ -21,14 +21,15 @@ export const useAnalyticsStore = create(
       semester:     null,
       studentClass: null,
       division:     null,
+      year:         null,
 
       // Actions
       setExam: (id, title) =>
-        set({ examId: id, examTitle: title, semester: null, studentClass: null, division: null }),
+        set({ examId: id, examTitle: title, semester: null, studentClass: null, division: null, year: null }),
 
       setAvailableGroups: (groups) => {
         const semesters  = [...new Set(groups.map((g) => g.semester).filter(Boolean))].sort((a, b) => a - b);
-        set({ availableSemesters: semesters, availableClasses: [], availableDivisions: [], semester: null, studentClass: null, division: null });
+        set({ availableSemesters: semesters, availableClasses: [], availableDivisions: [], semester: null, studentClass: null, division: null, year: null });
       },
 
       setSemester: (sem, groups) => {
@@ -49,11 +50,12 @@ export const useAnalyticsStore = create(
       },
 
       setDivision: (div) => set({ division: div }),
+      setYear: (yr) => set({ year: yr }),
 
       reset: () => set({
         examId: null, examTitle: '',
         availableSemesters: [], availableClasses: [], availableDivisions: [],
-        semester: null, studentClass: null, division: null,
+        semester: null, studentClass: null, division: null, year: null,
       }),
     }),
     {

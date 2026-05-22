@@ -10,6 +10,16 @@ export const useTeacherLogin = () => {
   });
 };
 
+export const useTeacherRegister = () => {
+  return useCustomMutation({
+    mutationFn: (data) => ({
+      url: '/auth/teacher/register',
+      method: 'POST',
+      data,
+    }),
+  });
+};
+
 export const useStudentLogin = () => {
   return useCustomMutation({
     mutationFn: (data) => ({
@@ -204,6 +214,16 @@ export const useCreateStudent = () => {
   return useCustomMutation({
     mutationFn: (data) => ({
       url: '/students',
+      method: 'POST',
+      data,
+    }),
+  });
+};
+
+export const useImportStudents = () => {
+  return useCustomMutation({
+    mutationFn: (data) => ({
+      url: '/students/import',
       method: 'POST',
       data,
     }),

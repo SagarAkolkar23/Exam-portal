@@ -51,6 +51,46 @@ const teacherLogin = async (req, res, next) => {
 };
 
 /**
+ * POST /api/auth/teacher/register
+ */
+const teacherRegister = async (req, res, next) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ message: 'Validation failed', errors: errors.array() });
+    }
+
+    const { email, password } = req.body;
+
+    const existingTeacher = await Teacher.findOne({ email });
+    if (existingTeacher) {
+      return res.status(400).json({ message: 'Email is already in use.' });
+    }
+
+    const name = email.split('@')[0];
+    const teacher = await Teacher.create({
+      name,
+      email,
+      passwordHash: password,
+    });
+
+    const token = signToken(teacher._id, 'teacher', teacher.name, teacher.email);
+
+    res.status(201).json({
+      token,
+      teacher: {
+        _id: teacher._id,
+        name: teacher.name,
+        email: teacher.email,
+        department: teacher.department,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
  * POST /api/auth/student/login
  */
 const studentLogin = async (req, res, next) => {
@@ -125,4 +165,4 @@ const getMe = async (req, res, next) => {
   }
 };
 
-module.exports = { teacherLogin, studentLogin, getMe };
+module.exports = { teacherLogin, teacherRegister, studentLogin, getMe };

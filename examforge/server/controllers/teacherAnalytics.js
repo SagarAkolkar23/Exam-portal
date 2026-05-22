@@ -82,7 +82,7 @@ const getExamOverview = async (req, res, next) => {
 const getScoreDistribution = async (req, res, next) => {
   try {
     const { examId } = req.params;
-    const { semester, studentClass, division } = req.query;
+    const { semester, studentClass, division, year } = req.query;
 
     const exam = await ownerExam(examId, req.user.id);
     if (!exam) return res.status(404).json({ message: 'Exam not found.' });
@@ -95,6 +95,7 @@ const getScoreDistribution = async (req, res, next) => {
     if (semester)     studentFilter.semester     = Number(semester);
     if (studentClass) studentFilter.studentClass = studentClass;
     if (division)     studentFilter.division     = division;
+    if (year)         studentFilter.year         = Number(year);
 
     const eligibleStudents = await Student.find(studentFilter, '_id name rollNumber email department year semester studentClass division').lean();
     const eligibleIds = eligibleStudents.map((s) => s._id);
@@ -352,9 +353,144 @@ const getQuestionAnalysis = async (req, res, next) => {
   }
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// 5. GET /api/teacher/analytics/classes-years
+//    Returns distinct classes, years, and non-draft exams for the teacher's dashboard filters.
+// ─────────────────────────────────────────────────────────────────────────────
+const getClassesAndYears = async (req, res, next) => {
+  try {
+    const teacherId = req.user.id;
+
+    // Distinct classes and years from all students
+    const classes = await Student.distinct('studentClass');
+    const years = await Student.distinct('year');
+
+    // Exams created by this teacher
+    const exams = await Exam.find({ createdBy: teacherId })
+      .select('title totalMarks status')
+      .sort({ createdAt: -1 })
+      .lean();
+
+    res.json({
+      classes: classes.filter(Boolean).sort(),
+      years: years.filter(Boolean).sort((a, b) => a - b),
+      exams: exams.filter(e => e.status !== 'draft'),
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 6. GET /api/teacher/analytics/threshold-report
+//    Returns counts and list of students scoring >= threshold and < threshold
+//    for a given class, year, and exam.
+// ─────────────────────────────────────────────────────────────────────────────
+const getThresholdReport = async (req, res, next) => {
+  try {
+    const { studentClass, year, semester, division, threshold, examId } = req.query;
+    const teacherId = req.user.id;
+
+    if (!examId || threshold === undefined) {
+      return res.status(400).json({ message: 'Exam ID and Threshold are required.' });
+    }
+
+    const parsedThreshold = Number(threshold);
+
+    // 1. Verify exam ownership
+    const exam = await Exam.findOne({ _id: examId, createdBy: teacherId }).lean();
+    if (!exam) {
+      return res.status(404).json({ message: 'Exam not found or unauthorized.' });
+    }
+
+    // 2. Build student filter based on query params and exam assigned students
+    const studentFilter = { _id: { $in: exam.assignedStudents } };
+    if (studentClass) studentFilter.studentClass = studentClass;
+    if (year)         studentFilter.year         = Number(year);
+    if (semester)     studentFilter.semester     = Number(semester);
+    if (division)     studentFilter.division     = division;
+
+    const students = await Student.find(studentFilter, '_id name rollNumber email').lean();
+
+    if (students.length === 0) {
+      return res.json({
+        exam: {
+          _id: exam._id,
+          title: exam.title,
+          totalMarks: exam.totalMarks,
+        },
+        aboveThreshold: [],
+        belowThreshold: [],
+        aboveCount: 0,
+        belowCount: 0,
+        totalStudents: 0
+      });
+    }
+
+    const studentIds = students.map(s => s._id);
+
+    // 3. Find finished submissions for these students in this exam
+    const submissions = await Submission.find({
+      examId,
+      studentId: { $in: studentIds },
+      submittedAt: { $exists: true, $ne: null }
+    }, 'studentId score percentage').lean();
+
+    const subMap = {};
+    for (const s of submissions) {
+      subMap[s.studentId.toString()] = s;
+    }
+
+    const aboveThreshold = [];
+    const belowThreshold = [];
+
+    for (const student of students) {
+      const sub = subMap[student._id.toString()];
+      const score = sub ? (sub.score ?? 0) : 0;
+      
+      const studentData = {
+        _id: student._id,
+        name: student.name,
+        rollNumber: student.rollNumber,
+        email: student.email,
+        score,
+        percentage: sub ? sub.percentage : 0,
+        attempted: !!sub
+      };
+
+      if (score >= parsedThreshold) {
+        aboveThreshold.push(studentData);
+      } else {
+        belowThreshold.push(studentData);
+      }
+    }
+
+    // Sort by rollNumber
+    aboveThreshold.sort((a, b) => a.rollNumber.localeCompare(b.rollNumber));
+    belowThreshold.sort((a, b) => a.rollNumber.localeCompare(b.rollNumber));
+
+    res.json({
+      exam: {
+        _id: exam._id,
+        title: exam.title,
+        totalMarks: exam.totalMarks,
+      },
+      aboveThreshold,
+      belowThreshold,
+      aboveCount: aboveThreshold.length,
+      belowCount: belowThreshold.length,
+      totalStudents: students.length
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   getExamOverview,
   getScoreDistribution,
   getCheatReport,
   getQuestionAnalysis,
+  getClassesAndYears,
+  getThresholdReport,
 };

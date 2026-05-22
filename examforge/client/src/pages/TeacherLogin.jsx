@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useTeacherLogin } from '../api/queries';
+import { useTeacherLogin, useTeacherRegister } from '../api/queries';
 import { useAuth } from '../context/AuthContext';
 import { getErrorMessage } from '../utils/helpers';
 
 function TeacherLogin() {
+  const [mode, setMode] = useState('login'); // 'login' or 'register'
   const [form, setForm] = useState({ email: '', password: '' });
   const [errors, setErrors] = useState({});
   const [serverError, setServerError] = useState('');
@@ -13,12 +14,18 @@ function TeacherLogin() {
   const { login } = useAuth();
   const navigate = useNavigate();
   const { mutateAsync: teacherLogin } = useTeacherLogin();
+  const { mutateAsync: teacherRegister } = useTeacherRegister();
 
   const validate = () => {
     const e = {};
     if (!form.email.trim()) e.email = 'Email is required';
     else if (!/^\S+@\S+\.\S+$/.test(form.email)) e.email = 'Enter a valid email';
-    if (!form.password) e.password = 'Password is required';
+    
+    if (!form.password) {
+      e.password = 'Password is required';
+    } else if (mode === 'register' && form.password.length < 6) {
+      e.password = 'Password must be at least 6 characters';
+    }
     return e;
   };
 
@@ -30,9 +37,15 @@ function TeacherLogin() {
     setErrors({});
     setLoading(true);
     try {
-      const data = await teacherLogin(form);
-      login(data.token, data.teacher, 'teacher');
-      navigate('/teacher/dashboard');
+      if (mode === 'login') {
+        const data = await teacherLogin(form);
+        login(data.token, data.teacher, 'teacher');
+        navigate('/teacher/dashboard');
+      } else {
+        const data = await teacherRegister(form);
+        login(data.token, data.teacher, 'teacher');
+        navigate('/teacher/dashboard');
+      }
     } catch (err) {
       setServerError(getErrorMessage(err));
     } finally {
@@ -51,8 +64,12 @@ function TeacherLogin() {
           </div>
           <span className="text-2xl font-extrabold text-primary tracking-tight">ExamForge</span>
         </div>
-        <h1 className="text-3xl font-extrabold text-ink mb-2">Welcome back</h1>
-        <p className="text-sm text-ink-muted">Sign in to your teacher account</p>
+        <h1 className="text-3xl font-extrabold text-ink mb-2">
+          {mode === 'login' ? 'Welcome back' : 'Create an account'}
+        </h1>
+        <p className="text-sm text-ink-muted">
+          {mode === 'login' ? 'Sign in to your teacher account' : 'Sign up to start creating assessments'}
+        </p>
       </div>
 
       {/* Card */}
@@ -75,7 +92,9 @@ function TeacherLogin() {
           <div className="form-group">
             <div className="flex items-center justify-between mb-1.5">
               <label htmlFor="password" className="text-xs font-bold text-ink-dim">Password</label>
-              <a href="#" className="text-xs font-semibold text-primary hover:text-primary-dark">Forgot password?</a>
+              {mode === 'login' && (
+                <a href="#" className="text-xs font-semibold text-primary hover:text-primary-dark">Forgot password?</a>
+              )}
             </div>
             <div className="relative">
               <input 
@@ -114,15 +133,60 @@ function TeacherLogin() {
             </div>
           )}
 
-          <label className="flex items-center gap-2 cursor-pointer mt-2">
-            <input type="checkbox" className="w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary/20 accent-primary" />
-            <span className="text-xs font-medium text-ink-dim">Remember this device</span>
-          </label>
+          {mode === 'login' && (
+            <label className="flex items-center gap-2 cursor-pointer mt-2">
+              <input type="checkbox" className="w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary/20 accent-primary" />
+              <span className="text-xs font-medium text-ink-dim">Remember this device</span>
+            </label>
+          )}
 
           <button type="submit" className="btn btn-primary btn-lg w-full justify-center mt-2 py-3" disabled={loading}>
-            {loading ? <><span className="spinner spinner-sm border-white/30 border-t-white" /> Signing in...</> : 'Sign in'}
+            {loading ? (
+              <>
+                <span className="spinner spinner-sm border-white/30 border-t-white" />{' '}
+                {mode === 'login' ? 'Signing in...' : 'Registering...'}
+              </>
+            ) : (
+              mode === 'login' ? 'Sign in' : 'Register'
+            )}
           </button>
         </form>
+
+        <div className="mt-5 pt-5 border-t border-line text-center">
+          <p className="text-xs text-ink-muted">
+            {mode === 'login' ? (
+              <>
+                Don't have an account?{' '}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode('register');
+                    setErrors({});
+                    setServerError('');
+                  }}
+                  className="font-bold text-primary hover:underline focus:outline-none"
+                >
+                  Register here
+                </button>
+              </>
+            ) : (
+              <>
+                Already have an account?{' '}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode('login');
+                    setErrors({});
+                    setServerError('');
+                  }}
+                  className="font-bold text-primary hover:underline focus:outline-none"
+                >
+                  Sign in
+                </button>
+              </>
+            )}
+          </p>
+        </div>
 
       </div>
 

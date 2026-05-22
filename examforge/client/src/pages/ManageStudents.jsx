@@ -1,11 +1,13 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import * as XLSX from 'xlsx';
 import api from '../api/axios';
 import {
   useGetStudents,
   useCreateStudent,
   useUpdateStudent,
   useDeleteStudent,
+  useImportStudents,
 } from '../api/queries';
 import { getErrorMessage } from '../utils/helpers';
 
@@ -16,6 +18,7 @@ export default function ManageStudents() {
   const { mutateAsync: createStudent } = useCreateStudent();
   const { mutateAsync: updateStudent } = useUpdateStudent();
   const { mutateAsync: deleteStudent } = useDeleteStudent();
+  const { mutateAsync: importStudents } = useImportStudents();
 
   // ── States ────────────────────────────────────────────────────────────────
   const [searchTerm, setSearchTerm] = useState('');
@@ -25,11 +28,13 @@ export default function ManageStudents() {
   const [selectedDivision, setSelectedDivision] = useState('');
 
   const [modalOpen, setModalOpen] = useState(false);
+  const [importModalOpen, setImportModalOpen] = useState(false); // Excel Import Modal
   const [editingStudent, setEditingStudent] = useState(null); // null means adding a new student
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     rollNumber: '',
+    prn: '', // Permanent Registration Number
     department: '',
     year: 1,
     semester: 1,
@@ -41,6 +46,20 @@ export default function ManageStudents() {
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
   const [actionSuccess, setActionSuccess] = useState('');
+
+  // Excel Bulk Import States
+  const [importFile, setImportFile] = useState(null);
+  const [importMeta, setImportMeta] = useState({
+    studentClass: '',
+    year: 1,
+    department: '',
+    semester: 1,
+    division: '',
+  });
+  const [parsedStudents, setParsedStudents] = useState([]);
+  const [importError, setImportError] = useState('');
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState(null);
 
   // ── Unique Filter Values ──────────────────────────────────────────────────
   const filters = useMemo(() => {
@@ -88,6 +107,7 @@ export default function ManageStudents() {
       name: '',
       email: '',
       rollNumber: '',
+      prn: '',
       department: '',
       year: 1,
       semester: 1,
@@ -105,6 +125,7 @@ export default function ManageStudents() {
       name: student.name || '',
       email: student.email || '',
       rollNumber: student.rollNumber || '',
+      prn: student.prn || '',
       department: student.department || '',
       year: student.year || 1,
       semester: student.semester || 1,
@@ -165,6 +186,115 @@ export default function ManageStudents() {
     setTimeout(() => setActionSuccess(''), 4000);
   };
 
+  // ── Excel Bulk Import Handlers ──────────────────────────────────────────
+  const handleImportMetaChange = (e) => {
+    const { name, value } = e.target;
+    setImportMeta((prev) => ({
+      ...prev,
+      [name]: name === 'year' || name === 'semester' ? Number(value) : value,
+    }));
+  };
+
+  const handleExcelUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setImportFile(file);
+    setImportError('');
+    setImportResult(null);
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const data = evt.target.result;
+        const workbook = XLSX.read(data, { type: 'binary' });
+        const sheetName = workbook.SheetNames[0];
+        const sheet = workbook.Sheets[sheetName];
+        const rows = XLSX.utils.sheet_to_json(sheet);
+
+        if (!rows.length) {
+          setImportError('The uploaded Excel file contains no data rows.');
+          setParsedStudents([]);
+          return;
+        }
+
+        // expected keys case-insensitively
+        const parsed = rows.map((row) => {
+          const findVal = (regexes) => {
+            const matchedKey = Object.keys(row).find((k) =>
+              regexes.some((r) => r.test(k.toLowerCase().trim()))
+            );
+            return matchedKey ? String(row[matchedKey]).trim() : '';
+          };
+
+          return {
+            name: findVal([/^name$/i, /^student\s*name$/i, /^full\s*name$/i]),
+            email: findVal([/^email$/i, /^email\s*address$/i]),
+            rollNumber: findVal([/^roll\s*number$/i, /^roll\s*no$/i, /^roll$/i]),
+            prn: findVal([/^prn$/i, /^prn\s*number$/i, /^permanent\s*registration\s*number$/i]),
+          };
+        });
+
+        const valid = parsed.filter((s) => s.name || s.email || s.rollNumber);
+        if (!valid.length) {
+          setImportError('Could not find columns for Name, Email, or Roll Number. Please check your Excel headers.');
+          setParsedStudents([]);
+          return;
+        }
+
+        setParsedStudents(valid);
+      } catch (err) {
+        setImportError('Error parsing Excel file. Please upload a valid .xlsx or .xls file.');
+        setParsedStudents([]);
+      }
+    };
+    reader.readAsBinaryString(file);
+  };
+
+  const handleBulkImportSubmit = async (e) => {
+    e.preventDefault();
+    if (!importMeta.studentClass.trim() || !importMeta.department.trim()) {
+      setImportError('Class and Department/Branch are required.');
+      return;
+    }
+    if (!parsedStudents.length) {
+      setImportError('Please upload a valid Excel file containing student details.');
+      return;
+    }
+
+    setImporting(true);
+    setImportError('');
+    setImportResult(null);
+
+    try {
+      const response = await importStudents({
+        ...importMeta,
+        students: parsedStudents,
+      });
+
+      setImportResult(response.results);
+      if (response.results.successCount > 0) {
+        showToast(`Successfully imported ${response.results.successCount} students!`);
+        queryClient.invalidateQueries({ queryKey: ['students'] });
+      } else {
+        setImportError('Failed to import students. Please see errors below.');
+      }
+      
+      // If no errors, auto-close after 2.5s
+      if (response.results.failedCount === 0) {
+        setTimeout(() => {
+          setImportModalOpen(false);
+          setImportFile(null);
+          setParsedStudents([]);
+          setImportResult(null);
+        }, 2500);
+      }
+    } catch (err) {
+      setImportError(getErrorMessage(err));
+    } finally {
+      setImporting(false);
+    }
+  };
+
   return (
     <div className="animate-[fadeIn_0.3s_ease] space-y-6">
       
@@ -176,15 +306,39 @@ export default function ManageStudents() {
             Create, update, and manage student details, departments, classes, divisions, and batches.
           </p>
         </div>
-        <button
-          onClick={openAddModal}
-          className="btn btn-primary flex items-center gap-2"
-        >
-          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
-          </svg>
-          Add New Student
-        </button>
+        <div className="flex gap-3">
+          <button
+            onClick={() => {
+              setImportFile(null);
+              setParsedStudents([]);
+              setImportError('');
+              setImportResult(null);
+              setImportMeta({
+                studentClass: '',
+                year: 1,
+                department: '',
+                semester: 1,
+                division: '',
+              });
+              setImportModalOpen(true);
+            }}
+            className="btn btn-secondary flex items-center gap-2 border-primary text-primary hover:bg-primary/5"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+            </svg>
+            Import from Excel
+          </button>
+          <button
+            onClick={openAddModal}
+            className="btn btn-primary flex items-center gap-2"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
+            </svg>
+            Add New Student
+          </button>
+        </div>
       </div>
 
       {/* Success notification */}
@@ -328,6 +482,7 @@ export default function ManageStudents() {
               <thead>
                 <tr className="bg-slate-50 border-b border-line text-slate-400 text-[10px] font-bold uppercase tracking-wider">
                   <th className="px-6 py-4">Roll Number</th>
+                  <th className="px-6 py-4">PRN</th>
                   <th className="px-6 py-4">Name</th>
                   <th className="px-6 py-4">Email</th>
                   <th className="px-6 py-4">Department</th>
@@ -345,6 +500,9 @@ export default function ManageStudents() {
                       <span className="bg-slate-100 px-2.5 py-1 rounded-md text-xs tracking-wider">
                         {student.rollNumber}
                       </span>
+                    </td>
+                    <td className="px-6 py-3.5 font-medium text-slate-600 whitespace-nowrap">
+                      {student.prn || '—'}
                     </td>
                     <td className="px-6 py-3.5 font-semibold text-ink whitespace-nowrap">
                       {student.name}
@@ -474,6 +632,19 @@ export default function ManageStudents() {
                   />
                 </div>
 
+                {/* PRN */}
+                <div className="form-group">
+                  <label className="form-label">PRN (Permanent Reg. No)</label>
+                  <input
+                    type="text"
+                    name="prn"
+                    value={formData.prn}
+                    onChange={handleInputChange}
+                    placeholder="e.g. 20230124005"
+                    className="form-input"
+                  />
+                </div>
+
                 {/* Department */}
                 <div className="form-group">
                   <label className="form-label">Department *</label>
@@ -588,6 +759,236 @@ export default function ManageStudents() {
               </div>
 
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal (Excel Bulk Import) ────────────────────────────────────── */}
+      {importModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-[fadeIn_0.15s_ease]">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden animate-[fadeInUp_0.2s_ease] border border-line flex flex-col max-h-[90vh]">
+            
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-line flex items-center justify-between flex-shrink-0">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded bg-primary/10 text-primary flex items-center justify-center text-sm">
+                  📊
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-ink text-lg">Excel Bulk Import</h3>
+                  <p className="text-xs text-slate-400">Register multiple students at once with password 'student123'</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setImportModalOpen(false)}
+                className="p-1 rounded-md text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Modal Content - Scrollable */}
+            <div className="p-6 space-y-6 overflow-y-auto flex-1">
+              
+              {importError && (
+                <div className="alert alert-error font-semibold">
+                  {importError}
+                </div>
+              )}
+
+              {importResult && (
+                <div className="space-y-3">
+                  <div className="alert alert-success bg-emerald-50 border-emerald-200 text-emerald-800 font-semibold flex items-center gap-2">
+                    <span>✓ Import Completed: {importResult.successCount} Succeeded, {importResult.failedCount} Failed.</span>
+                  </div>
+                  
+                  {importResult.failedCount > 0 && (
+                    <div className="border border-red-100 rounded-xl bg-red-50/30 p-4 space-y-2">
+                      <h4 className="text-xs font-bold text-red-800 uppercase tracking-wider">Failed Rows List</h4>
+                      <div className="max-h-40 overflow-y-auto text-xs space-y-1.5 divide-y divide-red-100/50">
+                        {importResult.errors.map((err, i) => (
+                          <div key={i} className="pt-1.5 text-red-700 flex justify-between gap-4">
+                            <span>Row {err.row}: {err.email}</span>
+                            <span className="font-medium text-right">{err.message}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <form onSubmit={handleBulkImportSubmit} className="space-y-6">
+                
+                {/* Section 1: Academic Scope details */}
+                <div className="bg-slate-50 border border-slate-200/60 rounded-2xl p-5 space-y-4">
+                  <h4 className="text-xs font-extrabold text-slate-500 uppercase tracking-wider mb-2">1. Target Class Details</h4>
+                  
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                    <div className="form-group">
+                      <label className="form-label">Class (e.g. TY) *</label>
+                      <input
+                        type="text"
+                        name="studentClass"
+                        required
+                        value={importMeta.studentClass}
+                        onChange={handleImportMetaChange}
+                        placeholder="e.g. TY"
+                        className="form-input bg-white"
+                      />
+                    </div>
+
+                    <div className="form-group">
+                      <label className="form-label">Batch (Year) *</label>
+                      <input
+                        type="number"
+                        name="year"
+                        required
+                        min={1}
+                        max={6}
+                        value={importMeta.year}
+                        onChange={handleImportMetaChange}
+                        className="form-input bg-white"
+                      />
+                    </div>
+
+                    <div className="form-group">
+                      <label className="form-label">Division (e.g. A)</label>
+                      <input
+                        type="text"
+                        name="division"
+                        value={importMeta.division}
+                        onChange={handleImportMetaChange}
+                        placeholder="e.g. A"
+                        className="form-input bg-white"
+                      />
+                    </div>
+
+                    <div className="form-group col-span-2">
+                      <label className="form-label">Department / Branch *</label>
+                      <input
+                        type="text"
+                        name="department"
+                        required
+                        value={importMeta.department}
+                        onChange={handleImportMetaChange}
+                        placeholder="e.g. Computer Science"
+                        className="form-input bg-white"
+                      />
+                    </div>
+
+                    <div className="form-group">
+                      <label className="form-label">Semester</label>
+                      <input
+                        type="number"
+                        name="semester"
+                        min={1}
+                        max={12}
+                        value={importMeta.semester}
+                        onChange={handleImportMetaChange}
+                        className="form-input bg-white"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Section 2: Upload Excel File */}
+                <div className="space-y-4">
+                  <h4 className="text-xs font-extrabold text-slate-500 uppercase tracking-wider">2. Upload Excel File</h4>
+                  
+                  <div className="border-2 border-dashed border-slate-300 rounded-2xl p-8 text-center bg-slate-50/50 hover:bg-slate-50 hover:border-primary/50 transition-colors relative cursor-pointer group">
+                    <input
+                      type="file"
+                      accept=".xlsx,.xls"
+                      onChange={handleExcelUpload}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                    />
+                    <div className="space-y-3">
+                      <div className="w-12 h-12 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xl mx-auto group-hover:scale-110 transition-transform">
+                        📥
+                      </div>
+                      <div>
+                        <p className="font-semibold text-slate-700 text-sm">
+                          {importFile ? importFile.name : 'Drag & drop or click to upload Excel sheet'}
+                        </p>
+                        <p className="text-xs text-slate-400 mt-1">Supports .xlsx and .xls formats</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-[11px] text-slate-400 flex items-start gap-2.5">
+                    <span className="text-sm">ℹ️</span>
+                    <p>
+                      Your Excel sheet should contain columns for <strong className="text-slate-600">Name</strong>, <strong className="text-slate-600">Email</strong>, and <strong className="text-slate-600">Roll Number</strong>. You can optionally include a <strong className="text-slate-600">PRN</strong> column. All imported students will be registered with password <strong className="text-slate-600">student123</strong>.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Preview Parsed rows */}
+                {parsedStudents.length > 0 && (
+                  <div className="border border-slate-200 rounded-xl p-4 space-y-3 bg-white">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-extrabold text-slate-500 uppercase tracking-wider">
+                        ✓ Parsed {parsedStudents.length} Students (Showing Preview)
+                      </h4>
+                    </div>
+                    <div className="overflow-x-auto border border-line rounded-lg">
+                      <table className="w-full text-left text-xs">
+                        <thead>
+                          <tr className="bg-slate-50 border-b border-line text-slate-400 font-bold uppercase">
+                            <th className="px-3 py-2">Roll Number</th>
+                            <th className="px-3 py-2">PRN</th>
+                            <th className="px-3 py-2">Name</th>
+                            <th className="px-3 py-2">Email</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {parsedStudents.slice(0, 3).map((st, i) => (
+                            <tr key={i} className="hover:bg-slate-50/50">
+                              <td className="px-3 py-2 font-bold text-slate-700">{st.rollNumber}</td>
+                              <td className="px-3 py-2 text-slate-500">{st.prn || '—'}</td>
+                              <td className="px-3 py-2 font-semibold text-slate-800">{st.name}</td>
+                              <td className="px-3 py-2 text-slate-500">{st.email}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    {parsedStudents.length > 3 && (
+                      <p className="text-[10px] text-slate-400 text-center italic">
+                        And {parsedStudents.length - 3} more rows...
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {/* Modal Footer */}
+                <div className="px-6 py-4 -mx-6 -mb-6 bg-slate-50 border-t border-line flex items-center justify-end gap-3 mt-6 flex-shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setImportModalOpen(false)}
+                    className="btn btn-secondary"
+                    disabled={importing}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="btn btn-primary min-w-[120px] justify-center"
+                    disabled={importing || !parsedStudents.length}
+                  >
+                    {importing ? (
+                      <><span className="spinner spinner-sm border-white/30 border-t-white" /> Importing...</>
+                    ) : (
+                      'Import Students'
+                    )}
+                  </button>
+                </div>
+
+              </form>
+            </div>
           </div>
         </div>
       )}
