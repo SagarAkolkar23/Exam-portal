@@ -1,5 +1,7 @@
 const { validationResult } = require('express-validator');
 const Poll = require('../models/Poll');
+const Student = require('../models/Student');
+const { sendPollNotifications } = require('../utils/mailer');
 const { generateAccessCode } = require('../utils/shuffle');
 
 /**
@@ -13,7 +15,7 @@ const createPoll = async (req, res, next) => {
       return res.status(400).json({ message: 'Validation failed', errors: errors.array() });
     }
 
-    const { title, question, options, isPublic } = req.body;
+    const { title, question, options, isPublic, sharedWith } = req.body;
 
     const poll = await Poll.create({
       title: title || '',
@@ -25,7 +27,28 @@ const createPoll = async (req, res, next) => {
       createdBy: req.user.id,
       isPublic: isPublic !== undefined ? isPublic : true,
       accessCode: generateAccessCode(),
+      sharedWith: sharedWith || [],
     });
+
+    // Send email notifications to students asynchronously if shared
+    if (Array.isArray(sharedWith) && sharedWith.length > 0) {
+      Student.find({ _id: { $in: sharedWith } }, 'name email')
+        .lean()
+        .then((students) => {
+          if (students && students.length > 0) {
+            sendPollNotifications({
+              poll,
+              students,
+              teacherName: req.user.name || 'Your Teacher',
+            }).catch((emailErr) => {
+              console.error('[mailer] Error sending poll notifications in background:', emailErr);
+            });
+          }
+        })
+        .catch((dbErr) => {
+          console.error('[db] Error fetching students for poll email dispatch:', dbErr);
+        });
+    }
 
     res.status(201).json(poll);
   } catch (err) {
@@ -39,7 +62,10 @@ const createPoll = async (req, res, next) => {
  */
 const listPolls = async (req, res, next) => {
   try {
-    const polls = await Poll.find({ createdBy: req.user.id }).sort({ createdAt: -1 });
+    const polls = await Poll.find({ createdBy: req.user.id })
+      .populate('sharedWith', 'name email rollNumber semester studentClass division')
+      .populate('responses.student', 'name email rollNumber semester studentClass division')
+      .sort({ createdAt: -1 });
     res.json(polls);
   } catch (err) {
     next(err);
@@ -75,13 +101,33 @@ const votePoll = async (req, res, next) => {
     if (!poll) return res.status(404).json({ message: 'Poll not found.' });
     if (!poll.isOpen) return res.status(400).json({ message: 'This poll is closed.' });
 
+    // Validate that student has not voted yet
+    const hasVoted = poll.responses.some(
+      (r) => r.student.toString() === req.user.id
+    );
+    if (hasVoted) {
+      return res.status(400).json({ message: 'You have already voted on this poll.' });
+    }
+
+    // Validate that student is assigned to this poll (if it is not public)
+    if (!poll.isPublic && !poll.sharedWith.some((id) => id.toString() === req.user.id)) {
+      return res.status(403).json({ message: 'Access denied. You are not assigned to this poll.' });
+    }
+
     const { optionIndex } = req.body;
     if (optionIndex >= poll.options.length) {
       return res.status(400).json({ message: 'Invalid option index.' });
     }
 
+    // Record the vote
     poll.options[optionIndex].votes += 1;
+    poll.responses.push({
+      student: req.user.id,
+      optionIndex,
+    });
+
     poll.markModified('options');
+    poll.markModified('responses');
     await poll.save();
 
     res.json({ message: 'Vote recorded.', poll });

@@ -87,7 +87,6 @@ function TeacherDashboard() {
         </div>
       )}
 
-      {/* ── Filter Bar ──────────────────────────────────────────────────── */}
       <div className="bg-white border border-slate-200/60 rounded-3xl p-6 shadow-sm space-y-6">
         <div className="flex flex-wrap gap-4 items-end">
           <Select

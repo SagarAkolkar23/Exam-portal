@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useGetExams, useGetPolls, useEndExam, useTogglePoll, useDeletePoll } from '../api/queries';
 import { getErrorMessage, formatDate } from '../utils/helpers';
+import PollAnalyticsModal from '../components/PollAnalyticsModal';
 
 const FILTER_TABS = [
   {
@@ -106,6 +107,7 @@ function TeacherExams() {
   const [liveViolations, setLiveViolations] = useState({});
   const [activeFilter, setActiveFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedAnalyticsPoll, setSelectedAnalyticsPoll] = useState(null);
 
   useEffect(() => {
     if (examsError) setError(getErrorMessage(examsError));
@@ -264,13 +266,17 @@ function TeacherExams() {
                           <td className="px-5 py-4">
                             <span className="font-semibold text-ink-dim bg-slate-100 px-2.5 py-1 rounded-md text-xs">{totalVotes} votes</span>
                           </td>
-                          <td className="px-5 py-4 text-right space-x-2">
+                          <td className="px-5 py-4 text-right space-x-2 whitespace-nowrap">
+                            <button className="btn btn-secondary btn-sm cursor-pointer"
+                              onClick={() => setSelectedAnalyticsPoll(poll)}>
+                              Analytics
+                            </button>
                             <button 
-                              className={`btn btn-sm ${poll.isOpen ? 'btn-secondary text-warn' : 'btn-secondary text-success'}`}
+                              className={`btn btn-sm ${poll.isOpen ? 'btn-secondary text-warn' : 'btn-secondary text-success'} cursor-pointer`}
                               onClick={() => handleTogglePoll(poll._id, poll.isOpen)}>
                               {poll.isOpen ? 'Close' : 'Reopen'}
                             </button>
-                            <button className="btn btn-sm btn-ghost text-danger hover:bg-red-50 hover:text-danger"
+                            <button className="btn btn-sm btn-ghost text-danger hover:bg-red-50 hover:text-danger cursor-pointer"
                               onClick={() => handleDeletePoll(poll._id)}>
                               Delete
                             </button>
@@ -400,6 +406,13 @@ function TeacherExams() {
           )
         )}
       </section>
+
+      {selectedAnalyticsPoll && (
+        <PollAnalyticsModal
+          poll={selectedAnalyticsPoll}
+          onClose={() => setSelectedAnalyticsPoll(null)}
+        />
+      )}
     </div>
   );
 }

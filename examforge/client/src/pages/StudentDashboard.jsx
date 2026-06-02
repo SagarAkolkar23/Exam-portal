@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../context/AuthContext';
 import { useAttemptStore } from '../store/attemptStore';
 import { joinExam } from '../api/joinExam';
+import { useVotePoll } from '../api/queries';
 import api from '../api/axios';
 
 function fmtDate(iso) {
@@ -36,6 +37,7 @@ const Icons = {
   Live: () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
   Completed: () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
   Missed: () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
+  Polls: () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>,
 };
 
 // ── Shared UI ──────────────────────────────────────────────────────────────
@@ -149,6 +151,127 @@ function MissedExamCard({ exam }) {
         <MetaBadge icon={Icons.Trophy} label="Marks" value={exam.totalMarks ?? '—'} />
       </div>
       <div className="w-full bg-slate-100 text-slate-500 rounded-xl py-3 px-4 text-center text-sm font-medium">No submission recorded</div>
+    </div>
+  );
+}
+
+function StudentPollCard({ poll, onVote }) {
+  const [selectedOption, setSelectedOption] = useState(null);
+  const [voting, setVoting] = useState(false);
+  const [error, setError] = useState('');
+
+  const totalVotes = poll.options.reduce((sum, o) => sum + o.votes, 0);
+
+  const handleVoteSubmit = async () => {
+    if (selectedOption === null) return;
+    setVoting(true);
+    setError('');
+    try {
+      await onVote(poll._id, selectedOption);
+    } catch (err) {
+      setError(err?.response?.data?.message || 'Failed to submit vote. Try again.');
+    } finally {
+      setVoting(false);
+    }
+  };
+
+  return (
+    <div className="group relative bg-white border border-slate-200/60 rounded-[2rem] p-6 shadow-[0_8px_30px_rgb(0,0,0,0.02)] hover:shadow-[0_20px_40px_rgb(0,0,0,0.06)] transition-all duration-500 hover:-translate-y-1 overflow-hidden">
+      <div className="absolute top-0 right-0 w-64 h-64 rounded-full blur-3xl opacity-10 -mr-20 -mt-20 bg-indigo-500 transition-transform duration-700 group-hover:scale-150 pointer-events-none" />
+      
+      <div className="relative z-10 flex flex-col h-full">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-4">
+          <span className={`px-2.5 py-1 rounded-full border text-[10px] font-bold tracking-wide uppercase ${
+            poll.isOpen && !poll.hasVoted
+              ? 'bg-indigo-50 text-indigo-600 border-indigo-100'
+              : 'bg-emerald-50 text-emerald-600 border-emerald-100'
+          }`}>
+            {poll.isOpen && !poll.hasVoted ? '🗳️ Active Poll' : '✓ Completed'}
+          </span>
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+            By {poll.createdBy?.name || 'Teacher'}
+          </span>
+        </div>
+
+        {/* Title & Question */}
+        <div className="mb-6">
+          {poll.title && (
+            <p className="text-xs font-bold text-indigo-500 uppercase tracking-wider mb-1">
+              {poll.title}
+            </p>
+          )}
+          <h3 className="text-base font-bold text-slate-900 leading-tight">
+            {poll.question}
+          </h3>
+        </div>
+
+        {error && <div className="text-xs font-semibold text-rose-500 mb-3">{error}</div>}
+
+        {/* Options rendering */}
+        {!poll.hasVoted && poll.isOpen ? (
+          /* Student can vote */
+          <div className="flex flex-col gap-3 mb-6 mt-auto">
+            {poll.options.map((opt, idx) => (
+              <button
+                key={idx}
+                type="button"
+                onClick={() => setSelectedOption(idx)}
+                className={`flex items-center gap-3 w-full p-4 rounded-2xl border text-left font-semibold text-sm transition-all cursor-pointer ${
+                  selectedOption === idx
+                    ? 'border-indigo-600 bg-indigo-50/40 text-indigo-700 shadow-sm'
+                    : 'border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 text-slate-600'
+                }`}
+              >
+                <span className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 ${
+                  selectedOption === idx ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-slate-300 bg-white'
+                }`}>
+                  {selectedOption === idx && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+                </span>
+                <span className="truncate">{opt.text}</span>
+              </button>
+            ))}
+          </div>
+        ) : (
+          /* Show results (voted or closed) */
+          <div className="flex flex-col gap-4 mb-6 mt-auto">
+            {poll.options.map((opt, idx) => {
+              const pct = totalVotes > 0 ? Math.round((opt.votes / totalVotes) * 100) : 0;
+              return (
+                <div key={idx} className="relative p-4 bg-slate-50 border border-slate-100 rounded-2xl overflow-hidden">
+                  {/* Background percentage bar */}
+                  <div
+                    className="absolute left-0 top-0 bottom-0 bg-indigo-500/10 rounded-l-2xl transition-all duration-700"
+                    style={{ width: `${pct}%` }}
+                  />
+                  <div className="relative z-10 flex justify-between items-center text-sm font-semibold">
+                    <span className="text-slate-800 truncate pr-2">{opt.text}</span>
+                    <span className="text-indigo-600 shrink-0 font-bold">{pct}%</span>
+                  </div>
+                </div>
+              );
+            })}
+            <div className="text-[10px] font-bold text-slate-400 text-right uppercase tracking-wider">
+              Total: {totalVotes} vote{totalVotes !== 1 ? 's' : ''}
+            </div>
+          </div>
+        )}
+
+        {/* Submit button */}
+        {!poll.hasVoted && poll.isOpen && (
+          <button
+            onClick={handleVoteSubmit}
+            disabled={selectedOption === null || voting}
+            className="w-full relative overflow-hidden bg-slate-900 hover:bg-slate-800 disabled:bg-slate-200 text-white rounded-2xl py-3 px-4 font-semibold text-sm transition-all shadow-md active:scale-95 flex items-center justify-center gap-2 cursor-pointer disabled:cursor-not-allowed"
+          >
+            {voting ? (
+              <><span className="spinner spinner-sm border-white/30 border-t-white" /> Voting...</>
+            ) : (
+              'Submit Vote'
+            )}
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -315,6 +438,7 @@ export default function StudentDashboard() {
   const navigate = useNavigate();
   const [joinOpen, setJoinOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('all');
+  const { mutateAsync: vote } = useVotePoll();
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['student-dashboard'],
@@ -326,7 +450,9 @@ export default function StudentDashboard() {
   const scheduledExams = data?.scheduledExams  ?? [];
   const endedExams     = data?.endedExams      ?? [];
   const completedExams = data?.completedExams  ?? [];
-  const counts         = data?.counts          ?? { live: 0, scheduled: 0, ended: 0, completed: 0 };
+  const activePolls    = data?.activePolls    ?? [];
+  const completedPolls  = data?.completedPolls  ?? [];
+  const counts         = data?.counts          ?? { live: 0, scheduled: 0, ended: 0, completed: 0, polls: 0 };
   const totalExams     = liveExams.length + scheduledExams.length + endedExams.length + completedExams.length;
 
   return (
@@ -390,6 +516,7 @@ export default function StudentDashboard() {
                 { label: 'Live Now',    value: counts.live,      color: 'bg-rose-500',   bg: 'bg-rose-50',   text: 'text-rose-700' },
                 { label: 'Scheduled',   value: counts.scheduled, color: 'bg-blue-500',   bg: 'bg-blue-50',   text: 'text-blue-700' },
                 { label: 'Completed',   value: counts.completed, color: 'bg-emerald-500',bg: 'bg-emerald-50',text: 'text-emerald-700' },
+                { label: 'Quick Polls', value: counts.polls,     color: 'bg-indigo-500', bg: 'bg-indigo-50', text: 'text-indigo-700' },
               ].map((stat, i) => (
                 <div key={i} className={`flex-1 min-w-[120px] rounded-2xl p-4 ${stat.bg} border border-white/50 relative overflow-hidden group`}>
                   <div className={`absolute top-0 right-0 w-16 h-16 rounded-full blur-xl opacity-20 -mr-8 -mt-8 ${stat.color} transition-transform group-hover:scale-150`} />
@@ -436,6 +563,7 @@ export default function StudentDashboard() {
                 { id: 'scheduled', label: 'Scheduled', count: scheduledExams.length, icon: <Icons.Calendar /> },
                 { id: 'completed', label: 'Completed', count: completedExams.length, icon: <Icons.Completed /> },
                 { id: 'missed', label: 'Missed', count: endedExams.length, icon: <Icons.Missed /> },
+                { id: 'polls', label: 'Quick Polls', count: activePolls.length, icon: <Icons.Polls /> },
               ].map(tab => (
                 <button 
                   key={tab.id}
@@ -514,6 +642,53 @@ export default function StudentDashboard() {
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {endedExams.map(({ exam }) => <MissedExamCard key={exam._id} exam={exam} />)}
+                  </div>
+                )}
+              </section>
+            )}
+
+            {/* Polls Section */}
+            {activeTab === 'polls' && (
+              <section className="space-y-12 animate-[fadeIn_0.3s_ease]">
+                {/* Active Polls */}
+                <div>
+                  <SectionTitle title="Active Polls" count={activePolls.length} gradient="bg-gradient-to-r from-indigo-500 to-purple-500" />
+                  {activePolls.length === 0 ? (
+                    <div className="bg-slate-50 border border-slate-100 rounded-[2rem] p-12 text-center">
+                      <p className="text-slate-500 font-medium">No active polls at the moment. Check back later!</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {activePolls.map((poll) => (
+                        <StudentPollCard
+                          key={poll._id}
+                          poll={poll}
+                          onVote={async (pollId, optionIndex) => {
+                            await vote({ id: pollId, optionIndex });
+                            refetch();
+                          }}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Completed Polls */}
+                {completedPolls.length > 0 && (
+                  <div>
+                    <SectionTitle title="Voted & Closed Polls" count={completedPolls.length} gradient="bg-slate-400" />
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {completedPolls.map((poll) => (
+                        <StudentPollCard
+                          key={poll._id}
+                          poll={poll}
+                          onVote={async (pollId, optionIndex) => {
+                            await vote({ id: pollId, optionIndex });
+                            refetch();
+                          }}
+                        />
+                      ))}
+                    </div>
                   </div>
                 )}
               </section>

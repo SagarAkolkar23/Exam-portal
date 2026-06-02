@@ -1,6 +1,7 @@
 const Exam = require('../models/Exam');
 const Submission = require('../models/Submission');
 const Result = require('../models/result');
+const Poll = require('../models/Poll');
 
 /**
  * GET /api/student/dashboard
@@ -88,16 +89,52 @@ const getDashboard = async (req, res, next) => {
       }
     }
 
+    // All polls assigned to this student (or public polls)
+    const allPolls = await Poll.find({
+      $or: [
+        { isPublic: true },
+        { sharedWith: studentId }
+      ]
+    })
+      .populate('createdBy', 'name')
+      .populate('responses.student', 'name email rollNumber')
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const activePolls = [];
+    const completedPolls = [];
+
+    for (const poll of allPolls) {
+      const hasVoted = poll.responses.some(
+        (r) => r.student.toString() === studentId
+      );
+
+      const pollData = {
+        ...poll,
+        hasVoted,
+        totalVotes: poll.options.reduce((sum, o) => sum + o.votes, 0),
+      };
+
+      if (poll.isOpen && !hasVoted) {
+        activePolls.push(pollData);
+      } else {
+        completedPolls.push(pollData);
+      }
+    }
+
     return res.json({
       liveExams,
       scheduledExams,
       endedExams,
       completedExams,
+      activePolls,
+      completedPolls,
       counts: {
         live:      liveExams.length,
         scheduled: scheduledExams.length,
         ended:     endedExams.length,
         completed: completedExams.length,
+        polls:     activePolls.length,
       },
     });
   } catch (err) {

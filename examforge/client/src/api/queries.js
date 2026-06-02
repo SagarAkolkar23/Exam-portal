@@ -171,6 +171,16 @@ export const useCreatePoll = () => {
   });
 };
 
+export const useVotePoll = () => {
+  return useCustomMutation({
+    mutationFn: ({ id, optionIndex }) => ({
+      url: `/polls/${id}/vote`,
+      method: 'POST',
+      data: { optionIndex },
+    }),
+  });
+};
+
 export const useProctorEvent = () => {
   return useCustomMutation({
     mutationFn: (data) => ({

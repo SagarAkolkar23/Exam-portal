@@ -58,6 +58,22 @@ const PollSchema = new mongoose.Schema(
     closedAt: {
       type: Date,
     },
+    sharedWith: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Student',
+      default: [],
+    }],
+    responses: [{
+      student: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Student',
+        required: true,
+      },
+      optionIndex: {
+        type: Number,
+        required: true,
+      },
+    }],
   },
   {
     timestamps: true,

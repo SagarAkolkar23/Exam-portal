@@ -225,4 +225,132 @@ async function sendExamNotifications({ exam, students, teacherName }) {
   failed.forEach((f, i) => console.error(`[mailer] Failed to send to student ${i}:`, f.reason?.message));
 }
 
-module.exports = { sendExamNotifications };
+function buildPollEmail({ student, poll, teacherName }) {
+  const html = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>New Poll Shared with You – ExamForge</title>
+</head>
+<body style="margin:0;padding:0;background:#f8fafc;font-family:'Segoe UI',Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;padding:40px 20px;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#ffffff;border-radius:24px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.07);">
+
+          <!-- Header -->
+          <tr>
+            <td style="background:linear-gradient(135deg,#3b82f6 0%,#2563eb 100%);padding:36px 40px;">
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td>
+                    <div style="display:inline-block;background:rgba(255,255,255,0.15);border-radius:12px;padding:10px 16px;">
+                      <span style="font-size:20px;font-weight:900;color:#ffffff;letter-spacing:-0.5px;">⚡ ExamForge</span>
+                    </div>
+                    <h1 style="color:#ffffff;font-size:26px;font-weight:800;margin:20px 0 4px;letter-spacing:-0.5px;">New Poll Shared with You!</h1>
+                    <p style="color:rgba(255,255,255,0.75);margin:0;font-size:15px;">Hello <strong style="color:#fff">${student.name}</strong>, your teacher has shared a new quick poll with you.</p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Question section -->
+          <tr>
+            <td style="padding:32px 40px 0;">
+              <p style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.08em;margin:0 0 8px;">QUESTION</p>
+              <h2 style="font-size:20px;font-weight:800;color:#0f172a;margin:0 0 16px;line-height:1.4;">${poll.question}</h2>
+              ${poll.title ? `<p style="font-size:14px;color:#64748b;margin:0 0 20px;line-height:1.6;font-style:italic;">Topic: ${poll.title}</p>` : ''}
+            </td>
+          </tr>
+
+          <!-- Options list -->
+          <tr>
+            <td style="padding:0 40px 24px;">
+              <p style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.08em;margin:0 0 12px;">OPTIONS</p>
+              <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e2e8f0;border-radius:16px;overflow:hidden;">
+                ${poll.options.map((opt, idx) => `
+                  <tr style="background:${idx % 2 === 0 ? '#f8fafc' : '#ffffff'};">
+                    <td style="padding:14px 20px;border-bottom:${idx < poll.options.length - 1 ? '1px solid #e2e8f0' : 'none'};">
+                      <span style="display:inline-block;width:24px;height:24px;line-height:24px;text-align:center;border-radius:6px;background:#e0e7ff;color:#4f46e5;font-size:12px;font-weight:700;margin-right:12px;vertical-align:middle;">${idx + 1}</span>
+                      <span style="font-size:14px;font-weight:600;color:#334155;vertical-align:middle;">${opt.text}</span>
+                    </td>
+                  </tr>
+                `).join('')}
+              </table>
+            </td>
+          </tr>
+
+          <!-- CTA -->
+          <tr>
+            <td style="padding:0 40px 32px;">
+              <p style="margin:0 0 16px;font-size:14px;color:#64748b;">Please cast your vote as soon as possible. Your feedback is important.</p>
+              <a href="${process.env.CLIENT_URL || 'http://localhost:5173/student/login'}" style="display:inline-block;background:linear-gradient(135deg,#3b82f6,#2563eb);color:#ffffff;text-decoration:none;padding:14px 28px;border-radius:12px;font-size:15px;font-weight:700;letter-spacing:-0.2px;">Cast Your Vote →</a>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:20px 40px;text-align:center;">
+              <p style="margin:0;font-size:12px;color:#94a3b8;">This email was sent by <strong style="color:#64748b;">ExamForge</strong> on behalf of <strong style="color:#64748b;">${teacherName || "your teacher"}</strong>. Please do not reply to this email.</p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `.trim();
+
+  const text = `
+Hello ${student.name},
+
+Your teacher has shared a new quick poll with you.
+
+Question: ${poll.question}
+${poll.title ? `Topic: ${poll.title}` : ''}
+
+Options:
+${poll.options.map((opt, idx) => `${idx + 1}. ${opt.text}`).join('\n')}
+
+Log in at ${process.env.CLIENT_URL || 'http://localhost:5173'} to submit your vote.
+
+– ExamForge (sent by ${teacherName || 'your teacher'})
+  `.trim();
+
+  return { html, text };
+}
+
+async function sendPollNotifications({ poll, students, teacherName }) {
+  if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
+    console.warn('[mailer] SMTP_USER / SMTP_PASS not set — skipping email notifications.');
+    return;
+  }
+
+  const results = await Promise.allSettled(
+    students
+      .filter((s) => s.email)
+      .map((student) => {
+        const { html, text } = buildPollEmail({ student, poll, teacherName });
+        return transporter.sendMail({
+          from: `"ExamForge" <${process.env.SMTP_USER}>`,
+          to: student.email,
+          subject: `🗳️ New Poll Shared: ${poll.question.slice(0, 50)}${poll.question.length > 50 ? '...' : ''}`,
+          text,
+          html,
+        });
+      })
+  );
+
+  const sent    = results.filter((r) => r.status === 'fulfilled').length;
+  const failed  = results.filter((r) => r.status === 'rejected');
+
+  console.log(`[mailer] Sent ${sent}/${students.length} poll notification(s).`);
+  failed.forEach((f, i) => console.error(`[mailer] Failed to send to student ${i}:`, f.reason?.message));
+}
+
+module.exports = { sendExamNotifications, sendPollNotifications };
