@@ -69,6 +69,7 @@ export const useAddTestStudent = () => {
       method: 'POST',
       data,
     }),
+    invalidateKeys: ['students'],
   });
 };
 
@@ -78,6 +79,7 @@ export const useEndExam = () => {
       url: `/exams/${examId}/end`,
       method: 'POST',
     }),
+    invalidateKeys: ['exams', 'examResults'],
   });
 };
 
@@ -87,6 +89,7 @@ export const useTogglePoll = () => {
       url: `/polls/${pollId}/${isOpen ? 'close' : 'open'}`,
       method: 'POST',
     }),
+    invalidateKeys: ['polls'],
   });
 };
 
@@ -96,6 +99,7 @@ export const useDeletePoll = () => {
       url: `/polls/${pollId}`,
       method: 'DELETE',
     }),
+    invalidateKeys: ['polls'],
   });
 };
 
@@ -128,6 +132,7 @@ export const useCreateExam = () => {
       method: 'POST',
       data,
     }),
+    invalidateKeys: ['exams'],
   });
 };
 
@@ -138,6 +143,7 @@ export const useUpdateExam = () => {
       method: 'PUT',
       data: payload,
     }),
+    invalidateKeys: ['exams'],
   });
 };
 
@@ -147,6 +153,7 @@ export const usePublishExam = () => {
       url: `/exams/${examId}/publish`,
       method: 'POST',
     }),
+    invalidateKeys: ['exams'],
   });
 };
 
@@ -168,6 +175,7 @@ export const useCreatePoll = () => {
       method: 'POST',
       data,
     }),
+    invalidateKeys: ['polls'],
   });
 };
 
@@ -178,6 +186,7 @@ export const useVotePoll = () => {
       method: 'POST',
       data: { optionIndex },
     }),
+    invalidateKeys: ['student-dashboard'],
   });
 };
 
@@ -228,6 +237,7 @@ export const useCreateStudent = () => {
       method: 'POST',
       data,
     }),
+    invalidateKeys: ['students'],
   });
 };
 
@@ -238,6 +248,7 @@ export const useImportStudents = () => {
       method: 'POST',
       data,
     }),
+    invalidateKeys: ['students'],
   });
 };
 
@@ -248,6 +259,7 @@ export const useUpdateStudent = () => {
       method: 'PUT',
       data,
     }),
+    invalidateKeys: ['students'],
   });
 };
 
@@ -257,6 +269,20 @@ export const useDeleteStudent = () => {
       url: `/students/${id}`,
       method: 'DELETE',
     }),
+    invalidateKeys: ['students'],
+  });
+};
+
+// ── Student Dashboard Query ─────────────────────────────────────────────────
+
+export const useStudentDashboard = () => {
+  return useCustomQuery({
+    queryKey: ['student-dashboard'],
+    queryFn: () => ({
+      url: '/student/dashboard',
+      method: 'GET',
+    }),
+    staleTime: 60_000,
   });
 };
 
@@ -364,3 +390,19 @@ export const useGetThresholdReport = (threshold, enabled = true) => {
   });
 };
 
+export const useGetPollAnalytics = (pollId, studentClass, division, enabled = true) => {
+  const params = {};
+  if (studentClass) params.studentClass = studentClass;
+  if (division) params.division = division;
+
+  return useCustomQuery({
+    queryKey: ['poll-analytics', pollId, studentClass, division],
+    queryFn: () => ({
+      url: `/polls/${pollId}/analytics`,
+      method: 'GET',
+      params,
+    }),
+    enabled: !!pollId && enabled,
+    staleTime: 10_000,
+  });
+};

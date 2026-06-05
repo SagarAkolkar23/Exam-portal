@@ -10,11 +10,6 @@ const signToken = (id, role, name, email) =>
     expiresIn: process.env.JWT_EXPIRES_IN || '7d',
   });
 
-// ─── Controllers ──────────────────────────────────────────────────────────────
-
-/**
- * POST /api/auth/teacher/login
- */
 const teacherLogin = async (req, res, next) => {
   try {
     const errors = validationResult(req);
@@ -50,9 +45,7 @@ const teacherLogin = async (req, res, next) => {
   }
 };
 
-/**
- * POST /api/auth/teacher/register
- */
+
 const teacherRegister = async (req, res, next) => {
   try {
     const errors = validationResult(req);

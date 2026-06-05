@@ -105,9 +105,11 @@ const getDashboard = async (req, res, next) => {
     const completedPolls = [];
 
     for (const poll of allPolls) {
-      const hasVoted = poll.responses.some(
-        (r) => r.student.toString() === studentId
-      );
+      const hasVoted = (poll.responses || []).some((r) => {
+        if (!r || !r.student) return false;
+        const sId = r.student._id ? r.student._id.toString() : r.student.toString();
+        return sId === studentId.toString();
+      });
 
       const pollData = {
         ...poll,

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useGetExams, useGetPolls, useEndExam, useTogglePoll, useDeletePoll } from '../api/queries';
 import { getErrorMessage, formatDate } from '../utils/helpers';
@@ -96,37 +96,34 @@ function EmptyState({ activeFilter, onCreate }) {
 function TeacherExams() {
   const navigate = useNavigate();
 
-  const { data: exams = [], isLoading: loadingExams, refetch: fetchExams, error: examsError } = useGetExams();
-  const { data: polls = [], isLoading: loadingPolls, refetch: fetchPolls } = useGetPolls();
+  const { data: exams = [], isLoading: loadingExams, error: examsError } = useGetExams();
+  const { data: polls = [], isLoading: loadingPolls } = useGetPolls();
   
   const { mutateAsync: endExam } = useEndExam();
   const { mutateAsync: togglePoll } = useTogglePoll();
   const { mutateAsync: deletePoll } = useDeletePoll();
 
-  const [error, setError] = useState('');
   const [liveViolations, setLiveViolations] = useState({});
   const [activeFilter, setActiveFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedAnalyticsPoll, setSelectedAnalyticsPoll] = useState(null);
 
-  useEffect(() => {
-    if (examsError) setError(getErrorMessage(examsError));
-  }, [examsError]);
+  const error = examsError ? getErrorMessage(examsError) : '';
 
   const handleEndExam = async (examId) => {
     if (!window.confirm('End this exam? This cannot be undone.')) return;
-    try { await endExam(examId); fetchExams(); }
+    try { await endExam(examId); }
     catch (err) { alert(getErrorMessage(err)); }
   };
 
   const handleTogglePoll = async (pollId, isOpen) => {
-    try { await togglePoll({ pollId, isOpen }); fetchPolls(); }
+    try { await togglePoll({ pollId, isOpen }); }
     catch (err) { alert(getErrorMessage(err)); }
   };
 
   const handleDeletePoll = async (pollId) => {
     if (!window.confirm('Delete this poll?')) return;
-    try { await deletePoll(pollId); fetchPolls(); }
+    try { await deletePoll(pollId); }
     catch (err) { alert(getErrorMessage(err)); }
   };
 

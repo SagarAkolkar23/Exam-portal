@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useGetExam, useGetExamResults, useEndExam } from '../api/queries';
 import { useAuth } from '../context/AuthContext';
@@ -45,36 +45,28 @@ function ExamDetail() {
   const navigate = useNavigate();
   const { user } = useAuth();
 
-  const { refetch: fetchExam } = useGetExam(id, false);
-  const { refetch: fetchExamResults } = useGetExamResults(id, false);
+  const { data: exam, isLoading: loadingExam, error: examError } = useGetExam(id);
+  const { data: resultsData, isLoading: loadingResults } = useGetExamResults(id);
   const { mutateAsync: endExam } = useEndExam();
 
-  const [exam, setExam] = useState(null);
-  const [results, setResults] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const results = resultsData?.results || [];
+  const loading = loadingExam || loadingResults;
+  const error = examError ? getErrorMessage(examError) : '';
+
   const [expandedRow, setExpandedRow] = useState(null);
   const [ending, setEnding] = useState(false);
-
-  const fetchData = useCallback(async () => {
-    try {
-      const [eRes, rRes] = await Promise.all([
-        fetchExam(),
-        fetchExamResults().catch(() => ({ data: { results: [] } })),
-      ]);
-      if (eRes.isError) throw eRes.error;
-      setExam(eRes.data);
-      setResults(rRes.data?.results || []);
-    } catch (err) { setError(getErrorMessage(err)); }
-    finally { setLoading(false); }
-  }, [id, fetchExam, fetchExamResults]);
-
-  useEffect(() => { fetchData(); }, [fetchData]);
 
   const handleEnd = async () => {
     if (!window.confirm('End this exam?')) return;
     setEnding(true);
-    try { await endExam(id); fetchData(); }
+    try {
+      await endExam(id);
+      // endExam already invalidates ['exams', 'examResults'] via invalidateKeys.
+      // Also invalidate the specific exam key for this page.
+      const { queryClient } = await import('../api/queryClient');
+      queryClient.invalidateQueries({ queryKey: ['exam', id] });
+      queryClient.invalidateQueries({ queryKey: ['examResults', id] });
+    }
     catch (err) { alert(getErrorMessage(err)); }
     finally { setEnding(false); }
   };

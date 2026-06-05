@@ -1,6 +1,6 @@
 const router = require('express').Router();
 const { body } = require('express-validator');
-const { requireTeacher, auth } = require('../middleware/auth');
+const { requireTeacher, requireStudent, auth } = require('../middleware/auth');
 const {
   createPoll,
   listPolls,
@@ -9,6 +9,7 @@ const {
   closePoll,
   openPoll,
   deletePoll,
+  getPollAnalytics,
 } = require('../controllers/pollController');
 
 // POST   /api/polls            — create a poll (teacher only)
@@ -26,13 +27,16 @@ router.post(
 // GET    /api/polls            — list teacher's polls
 router.get('/', requireTeacher, listPolls);
 
-// GET    /api/polls/:id        — get poll with live vote counts (public)
-router.get('/:id', getPoll);
+// GET    /api/polls/:id/analytics — get poll analytics (teacher only)
+router.get('/:id/analytics', requireTeacher, getPollAnalytics);
 
-// POST   /api/polls/:id/vote   — cast a vote (requires auth)
+// GET    /api/polls/:id        — get poll with live vote counts (requires auth)
+router.get('/:id', auth, getPoll);
+
+// POST   /api/polls/:id/vote   — cast a vote (requires student auth)
 router.post(
   '/:id/vote',
-  auth,
+  requireStudent,
   [body('optionIndex').isInt({ min: 0 }).withMessage('Valid option index is required')],
   votePoll
 );

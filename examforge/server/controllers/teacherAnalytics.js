@@ -374,9 +374,10 @@ const getClassesAndYears = async (req, res, next) => {
   try {
     const teacherId = req.user.id;
 
-    // Distinct classes and years from all students
+    // Distinct classes, years, and divisions from all students
     const classes = await Student.distinct('studentClass');
     const years = await Student.distinct('year');
+    const divisions = await Student.distinct('division');
 
     // Exams created by this teacher
     const exams = await Exam.find({ createdBy: teacherId })
@@ -387,6 +388,7 @@ const getClassesAndYears = async (req, res, next) => {
     res.json({
       classes: classes.filter(Boolean).sort(),
       years: years.filter(Boolean).sort((a, b) => a - b),
+      divisions: divisions.filter(Boolean).sort(),
       exams: exams.filter(e => e.status !== 'draft'),
     });
   } catch (err) {

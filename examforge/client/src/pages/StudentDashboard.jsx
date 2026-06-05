@@ -1,11 +1,9 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../context/AuthContext';
 import { useAttemptStore } from '../store/attemptStore';
 import { joinExam } from '../api/joinExam';
-import { useVotePoll } from '../api/queries';
-import api from '../api/axios';
+import { useVotePoll, useStudentDashboard } from '../api/queries';
 
 function fmtDate(iso) {
   if (!iso) return '—';
@@ -440,11 +438,7 @@ export default function StudentDashboard() {
   const [activeTab, setActiveTab] = useState('all');
   const { mutateAsync: vote } = useVotePoll();
 
-  const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ['student-dashboard'],
-    queryFn: async () => { const res = await api.get('/student/dashboard'); return res.data; },
-    staleTime: 60_000,
-  });
+  const { data, isLoading, isError, refetch } = useStudentDashboard();
 
   const liveExams      = data?.liveExams      ?? [];
   const scheduledExams = data?.scheduledExams  ?? [];
@@ -665,7 +659,7 @@ export default function StudentDashboard() {
                           poll={poll}
                           onVote={async (pollId, optionIndex) => {
                             await vote({ id: pollId, optionIndex });
-                            refetch();
+                            // Query invalidation handled automatically by useVotePoll
                           }}
                         />
                       ))}
@@ -684,7 +678,7 @@ export default function StudentDashboard() {
                           poll={poll}
                           onVote={async (pollId, optionIndex) => {
                             await vote({ id: pollId, optionIndex });
-                            refetch();
+                            // Query invalidation handled automatically by useVotePoll
                           }}
                         />
                       ))}

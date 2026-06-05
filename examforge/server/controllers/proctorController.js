@@ -2,6 +2,7 @@ const { validationResult } = require('express-validator');
 const ProctoringEvent = require('../models/ProctoringEvent');
 const Attendance = require('../models/attendance');
 const Submission = require('../models/Submission');
+const Exam = require('../models/Exam');
 
 const VALID_TYPES = [
   'tab_switch', 'fullscreen_exit', 'window_blur',
@@ -43,6 +44,12 @@ const recordEvent = async (req, res, next) => {
 const getEvents = async (req, res, next) => {
   try {
     const { examId, studentId } = req.params;
+
+    // Check that the exam exists and was created by the requesting teacher
+    const exam = await Exam.findOne({ _id: examId, createdBy: req.user.id });
+    if (!exam) {
+      return res.status(403).json({ message: 'Access denied. You do not own this exam.' });
+    }
 
     const events = await ProctoringEvent.find({ examId, studentId })
       .sort({ timestamp: 1 })
