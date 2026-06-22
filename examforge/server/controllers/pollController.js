@@ -4,10 +4,7 @@ const Student = require('../models/Student');
 const { sendPollNotifications } = require('../utils/mailer');
 const { generateAccessCode } = require('../utils/shuffle');
 
-/**
- * POST /api/polls
- * Create a new poll (teacher only).
- */
+
 const createPoll = async (req, res, next) => {
   try {
     const errors = validationResult(req);

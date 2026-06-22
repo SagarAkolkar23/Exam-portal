@@ -124,7 +124,7 @@ function TeacherDashboard() {
           }`}
           onClick={() => setActiveTab("exams")}
         >
-          📝 Exam Analytics
+           Exam Analytics
         </button>
         <button
           className={`py-3 px-1 font-bold text-sm border-b-2 transition-all cursor-pointer ${
@@ -134,7 +134,7 @@ function TeacherDashboard() {
           }`}
           onClick={() => setActiveTab("polls")}
         >
-          📊 Poll Analytics
+           Poll Analytics
         </button>
       </div>
 
@@ -259,7 +259,7 @@ function TeacherDashboard() {
           {!examId && (
             <div className="flex flex-col items-center justify-center py-24 gap-4 bg-white border border-slate-200/60 rounded-3xl shadow-sm">
               <div className="w-20 h-20 rounded-full bg-indigo-50 flex items-center justify-center text-4xl shadow-sm">
-                📊
+                
               </div>
               <h2 className="text-xl font-bold text-slate-700">No exam selected</h2>
               <p className="text-slate-400 text-sm font-medium max-w-sm text-center">
@@ -372,7 +372,7 @@ function TeacherDashboard() {
           {!selectedPollId && (
             <div className="flex flex-col items-center justify-center py-24 gap-4 bg-white border border-slate-200/60 rounded-3xl shadow-sm">
               <div className="w-20 h-20 rounded-full bg-indigo-50 flex items-center justify-center text-4xl shadow-sm">
-                🗳️
+                
               </div>
               <h2 className="text-xl font-bold text-slate-700">No poll selected</h2>
               <p className="text-slate-400 text-sm font-medium max-w-sm text-center">
